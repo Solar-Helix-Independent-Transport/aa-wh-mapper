@@ -1,6 +1,6 @@
 # Contributor Covenant Code of Conduct<a name="contributor-covenant-code-of-conduct"></a>
 
----
+______________________________________________________________________
 
 <!-- mdformat-toc start --slug=github --maxlevel=6 --minlevel=2 -->
 
@@ -18,7 +18,7 @@
 
 <!-- mdformat-toc end -->
 
----
+______________________________________________________________________
 
 ## Our Pledge<a name="our-pledge"></a>
 

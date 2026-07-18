@@ -4,6 +4,7 @@ coverage
 
 # Ignore all HTML files:
 *.html
+*.md
 
 # ingnore assembled files
 wh_mapper/static/*
