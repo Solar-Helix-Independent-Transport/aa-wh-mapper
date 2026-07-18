@@ -71,7 +71,12 @@ export function FloatingEdge({
 
   const path =
     offset === 0
-      ? getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty })[0]
+      ? getStraightPath({
+          sourceX: sx,
+          sourceY: sy,
+          targetX: tx,
+          targetY: ty,
+        })[0]
       : `M ${sx},${sy} Q ${mx},${my} ${tx},${ty}`;
 
   const { x: labelX, y: labelY } = pointAlongCurve(sx, sy, mx, my, tx, ty, 0.5);

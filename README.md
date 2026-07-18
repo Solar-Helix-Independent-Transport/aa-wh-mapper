@@ -45,11 +45,12 @@ pip install aa-wh-mapper
 
 ### 2. Configure Alliance Auth
 
-Add `"channels"`, and `"wh_mapper"` to `INSTALLED_APPS` in your project's `settings/local.py` 
+Add `"channels"`, and `"wh_mapper"` to `INSTALLED_APPS` in your project's `settings/local.py`
+
 ```python
 INSTALLED_APPS += [
-    "channels", # Only if not already added
-    "eve_sde", # Only if not already added
+    "channels",  # Only if not already added
+    "eve_sde",  # Only if not already added
     "wh_mapper",
 ]
 ```
@@ -349,8 +350,9 @@ npm run build
 `npm run dev` starts a Vite dev server on port 3000, proxying `/wh-mapper/api/` and `/ws/wh-mapper/` to a Django dev server running on port 8000.
 
 ## Contributions
+
 All bug fixes or features must not include extra superfluous formatting changes, if you want to reformat the entire repository put it in it own request.
 
 All Contributions big and small are welcome, we ask that if you submit code you understand how it works.
 
-Make sure you have signed the [License Agreement](https://developers.eveonline.com/resource/license-agreement) by logging in at https://developers.eveonline.com before submitting any pull requests. 
+Make sure you have signed the [License Agreement](https://developers.eveonline.com/resource/license-agreement) by logging in at https://developers.eveonline.com before submitting any pull requests.

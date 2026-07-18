@@ -199,64 +199,60 @@ export function MapCanvas({
     const pairIndices = new Map<string, number>();
 
     return state.connections.map((connection) => {
-        const pairKey = [connection.top_system_id, connection.bottom_system_id]
-          .sort((a, b) => a - b)
-          .join("-");
-        const parallelIndex = pairIndices.get(pairKey) ?? 0;
-        pairIndices.set(pairKey, parallelIndex + 1);
-        const parallelCount = pairCounts.get(pairKey) ?? 1;
+      const pairKey = [connection.top_system_id, connection.bottom_system_id]
+        .sort((a, b) => a - b)
+        .join("-");
+      const parallelIndex = pairIndices.get(pairKey) ?? 0;
+      pairIndices.set(pairKey, parallelIndex + 1);
+      const parallelCount = pairCounts.get(pairKey) ?? 1;
 
-        const topSignature = state.signatures.find(
-          (s) => s.id === connection.top_signature_id,
-        );
-        const bottomSignature = state.signatures.find(
-          (s) => s.id === connection.bottom_signature_id,
-        );
-        // Once either end's signature has an identified wormhole type, its
-        // max jump mass tells us the ship size definitively - that computed
-        // value takes priority over the connection's manually-set
-        // ship_size_limit, which only exists as a fallback for the period
-        // before the type is known.
-        const wormholeType = connectionWormholeType(
-          connection,
-          state.signatures,
-        );
-        const shipSize =
-          (wormholeType && shipSizeForJumpMass(wormholeType.max_jump_mass)) ??
-          connection.ship_size_limit;
+      const topSignature = state.signatures.find(
+        (s) => s.id === connection.top_signature_id,
+      );
+      const bottomSignature = state.signatures.find(
+        (s) => s.id === connection.bottom_signature_id,
+      );
+      // Once either end's signature has an identified wormhole type, its
+      // max jump mass tells us the ship size definitively - that computed
+      // value takes priority over the connection's manually-set
+      // ship_size_limit, which only exists as a fallback for the period
+      // before the type is known.
+      const wormholeType = connectionWormholeType(connection, state.signatures);
+      const shipSize =
+        (wormholeType && shipSizeForJumpMass(wormholeType.max_jump_mass)) ??
+        connection.ship_size_limit;
 
-        return {
-          id: String(connection.id),
-          source: String(connection.top_system_id),
-          target: String(connection.bottom_system_id),
-          type: "floating" as const,
-          label: SHIP_SIZE_LABEL[shipSize],
-          // The source/target ends of the xyflow edge line up with
-          // top/bottom respectively (see source/target above), so these
-          // render at the end of the line nearest each signature's own
-          // system.
-          sourceSignatureId: topSignature?.signature_id,
-          targetSignatureId: bottomSignature?.signature_id,
-          parallelIndex,
-          parallelCount,
-          wormholeType,
-          lifeStatus: connection.life_status,
-          lifeStatusMarkedAt: connection.life_status_marked_at,
-          createdAt: connection.created_at,
-          style: FIXED_CONNECTION_STYLE[connection.connection_type] ?? {
-            stroke:
-              TIME_STATUS_COLOR[connection.time_status] ??
-              TIME_STATUS_COLOR.red,
-            strokeWidth: 2,
-            // Dashing is mass-based (nearly depleted), not time-based -
-            // color already carries the time/life-left signal above, so
-            // this is a second, independent axis rather than doubling up
-            // on the same one.
-            strokeDasharray:
-              connection.mass_status === "critical" ? "6 4" : undefined,
-          },
-        };
-      });
+      return {
+        id: String(connection.id),
+        source: String(connection.top_system_id),
+        target: String(connection.bottom_system_id),
+        type: "floating" as const,
+        label: SHIP_SIZE_LABEL[shipSize],
+        // The source/target ends of the xyflow edge line up with
+        // top/bottom respectively (see source/target above), so these
+        // render at the end of the line nearest each signature's own
+        // system.
+        sourceSignatureId: topSignature?.signature_id,
+        targetSignatureId: bottomSignature?.signature_id,
+        parallelIndex,
+        parallelCount,
+        wormholeType,
+        lifeStatus: connection.life_status,
+        lifeStatusMarkedAt: connection.life_status_marked_at,
+        createdAt: connection.created_at,
+        style: FIXED_CONNECTION_STYLE[connection.connection_type] ?? {
+          stroke:
+            TIME_STATUS_COLOR[connection.time_status] ?? TIME_STATUS_COLOR.red,
+          strokeWidth: 2,
+          // Dashing is mass-based (nearly depleted), not time-based -
+          // color already carries the time/life-left signal above, so
+          // this is a second, independent axis rather than doubling up
+          // on the same one.
+          strokeDasharray:
+            connection.mass_status === "critical" ? "6 4" : undefined,
+        },
+      };
+    });
   }, [state.connections, state.signatures]);
 
   const computedEdges: Edge[] = useMemo(

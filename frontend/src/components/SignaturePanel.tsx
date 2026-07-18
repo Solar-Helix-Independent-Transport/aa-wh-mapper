@@ -437,7 +437,9 @@ export function SignaturePanel({
                     }
                   >
                     <i
-                      className={sig.is_hidden ? "fas fa-eye-slash" : "fas fa-eye"}
+                      className={
+                        sig.is_hidden ? "fas fa-eye-slash" : "fas fa-eye"
+                      }
                       aria-hidden="true"
                     />
                   </button>
