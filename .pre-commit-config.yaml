@@ -1,0 +1,266 @@
+# Apply to all files without committing:
+#   pre-commit run --all-files
+# Update this file:
+#   pre-commit autoupdate --freeze
+
+# Set the default language versions for the hooks
+default_language_version:
+  python: python3 # Force all Python hooks to use Python 3
+  node: 24.14.0 # Force all Node hooks to use this specific Node version
+
+# https://pre-commit.ci/
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: false
+  autoupdate_branch: ""
+  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
+  autoupdate_schedule: monthly
+  skip:
+    - eslint # Fails due to missing node environment in CI
+  submodules: false
+
+# Globally exclude files
+# https://pre-commit.com/#top_level-exclude
+exclude: |
+  (?x)(
+    .github/|
+    LICENSE|
+    .min(.css|.css.map|.js|.js.map)|
+    locale/|
+    static/(.*)/libs/
+  )
+
+# pre-commit setup
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    hooks:
+      # Identify invalid files
+      - id: check-ast
+        name: check-ast (Python)
+        description: Check for syntax errors in Python files.
+
+      - id: check-yaml
+        name: check-yaml (YAML)
+        description: Check for syntax errors in YAML files.
+
+      - id: check-json
+        name: check-json (JSON)
+        description: Check for syntax errors in JSON files.
+
+      - id: check-toml
+        name: check-toml (TOML)
+        description: Check for syntax errors in TOML files.
+
+      - id: check-xml
+        name: check-xml (XML)
+        description: Check for syntax errors in XML files.
+
+      # git checks
+      - id: check-merge-conflict
+        name: Check for merge conflict strings
+        description: Check for files that contain merge conflict strings.
+
+      - id: check-added-large-files
+        name: Check for large files
+        description: Check for large files that were added to the repository.
+        args:
+          - --maxkb=10000
+
+      - id: detect-private-key
+        name: Detect private key
+        description: Check for private keys in the repository.
+
+      - id: check-case-conflict
+        name: Check for case conflicts
+        description: Check for files with names that differ only in case.
+
+      # Python checks
+      - id: check-docstring-first
+        name: Check for docstring in first line
+        description: Check that the first line of a file is a docstring.
+
+      - id: debug-statements
+        name: Check for debug statements
+        description: Check for print statements and pdb imports.
+
+      - id: requirements-txt-fixer
+        name: Fix requirements.txt
+        description: Fix the formatting of requirements.txt files.
+
+      - id: fix-byte-order-marker
+        name: Fix byte order marker
+        description: Fix the byte order marker in Python files.
+
+      - id: check-builtin-literals
+        name: Check for built-in literals
+        description: Check for built-in literals in Python code.
+
+      # General quality checks
+      - id: mixed-line-ending
+        name: Mixed line ending
+        description: Check for mixed line endings.
+        args:
+          - --fix=lf
+
+      - id: trailing-whitespace
+        name: Trailing whitespace
+        description: Check for trailing whitespace.
+        args:
+          - --markdown-linebreak-ext=md
+
+      - id: check-executables-have-shebangs
+        name: Check for shebangs in executables
+        description: Check that executables have shebangs.
+
+      - id: end-of-file-fixer
+        name: End of file fixer
+        description: Ensure that files end with a newline.
+
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: 3a6eb0fadf60b3cccfd80bad9dbb6fae7e47b316 # frozen: v1.10.0
+    hooks:
+      - id: python-check-blanket-noqa # Enforce that noqa annotations always occur with specific codes. Sample annotations: # noqa: F401, # noqa: F401,W203
+        name: Check for blanket noqa
+        description: Check for blanket noqa annotations.
+
+      - id: python-check-blanket-type-ignore # Enforce that # type: ignore annotations always occur with specific codes. Sample annotations: # type: ignore[attr-defined], # type: ignore[attr-defined, name-defined]
+        name: Check for blanket type ignore
+        description: Check for blanket type ignore annotations.
+
+      - id: python-check-mock-methods # Prevent common mistakes of assert mck.not_called(), assert mck.called_once_with(...) and mck.assert_called
+        name: Check for mock methods
+        description: Check for common mistakes of mock methods.
+
+      - id: python-no-eval # A quick check for the eval() built-in function
+        name: Check for eval
+        description: Check for the eval() built-in function.
+
+      - id: python-no-log-warn #  A quick check for the deprecated .warn() method of python loggers
+        name: Check for log warn
+        description: Check for the deprecated .warn() method of python loggers.
+
+      - id: python-use-type-annotations # Enforce that python3.6+ type annotations are used instead of type comments
+        name: Use type annotations
+        description: Enforce that python3.6+ type annotations are used instead of type comments.
+
+  - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
+    rev: bebfac867564fbd992e5b45379b4b0568d5cb85b # frozen: 3.6.1
+    hooks:
+      - id: editorconfig-checker
+        name: EditorConfig Checker
+        description: Check for compliance with the definitions in the EditorConfig file.
+
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: bdcc9646c249f00ec9781751791e7b75b48b3722 # frozen: 1.31.1
+    hooks:
+      - id: django-upgrade
+        name: Django upgrade
+        description: Upgrade Django code to a target version.
+        args:
+          - --target-version=5.2 # Minimum supported Django version for AA. Update as needed.
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: 75992aaa40730136014f34227e0135f63fc951b4 # frozen: v3.21.2
+    hooks:
+      - id: pyupgrade
+        name: PyUpgrade
+        description: Upgrade syntax to newer versions of Python.
+        args:
+          - --py310-plus # Minimum required Python version for AA. Update as needed.
+
+  - repo: https://github.com/hhatto/autopep8
+    rev: "v2.3.1"
+    hooks:
+      - id: autopep8
+
+  - repo: https://github.com/asottile/yesqa
+    rev: f2ae90cf9e1661ade79d0881186ce4fd7ba6ee79 # frozen: v1.5.0
+    hooks:
+      - id: yesqa
+        name: YesQA
+        description: Check for extraneous `# noqa` comments.
+
+  - repo: https://github.com/PyCQA/isort
+    rev: dac090ce4d9ee313d086e2e89ab1acb8c2664fa1 # frozen: 9.0.0a3
+    hooks:
+      - id: isort
+        name: Isort
+        description: Sort imports.
+
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 2d496dbc18e31b83a1596685347ffe0b6041daf0 # frozen: 1.0.0
+    hooks:
+      - id: mdformat
+        name: Mdformat
+        description: Format Markdown files.
+        additional_dependencies:
+          - mdformat-gfm==1.0.0 # Mdformat plugin for GitHub Flavored Markdown compatibility » https://github.com/hukkin/mdformat-gfm/tags
+          - mdformat-toc==0.5.0 # Mdformat plugin to generate a table of contents » https://github.com/hukkin/mdformat-toc/tags
+          - mdformat-black==0.1.1 # Mdformat plugin to Blacken Python code blocks » https://github.com/hukkin/mdformat-black/tags
+          - mdformat-shfmt==0.2.0 # Mdformat plugin to format shell code blocks » https://github.com/hukkin/mdformat-shfmt/tags
+
+  - repo: https://github.com/tox-dev/tox-ini-fmt
+    rev: a55736a49694e73b4b885c78a827d9771515b9dd # frozen: 1.7.1
+    hooks:
+      - id: tox-ini-fmt
+        name: tox.ini formatter
+        description: Format the tox.ini file.
+
+  - repo: https://github.com/tox-dev/pyproject-fmt
+    rev: 0c8c15d8fe996493035be407c5cf4a288cf6bf8e # frozen: v2.25.1
+    hooks:
+      - id: pyproject-fmt
+        name: pyproject.toml formatter
+        description: Format the pyproject.toml file.
+        args:
+          - --indent=4
+        additional_dependencies:
+          - tox==4.56.1 # https://github.com/tox-dev/tox/releases/latest
+
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: 4b2e70d08cb2ccd26d1fba73588de41c7a5d50b7 # frozen: v0.25
+    hooks:
+      - id: validate-pyproject
+        name: Validate pyproject.toml
+        description: Validate the pyproject.toml file.
+
+  #  - repo: https://github.com/pylint-dev/pylint
+  #    rev: 8a396357098337ba8be714fffdf2d00947a9778c  # frozen: v4.0.6
+  #    hooks:
+  #      - id: pylint
+  #        name: Pylint
+  #        description: Check for errors and code smells in Python code.
+  #        args:
+  #          - --py-version=3.10  # Minimum required Python version for AA. Update as needed.
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 1a4bb160cab6417b3045e1b37b6b72449243e658 # frozen: 0.37.4
+    hooks:
+      - id: check-github-actions
+        name: Check GitHub Actions
+        description: This hook checks that GitHub Actions files are valid.
+        args:
+          - --verbose
+
+      - id: check-github-workflows
+        name: Check GitHub Workflows
+        description: This hook checks that GitHub Workflows files are valid.
+        args:
+          - --verbose
+
+      - id: check-dependabot
+        name: Check Dependabot Configuration
+        description: This hook checks that Dependabot configuration files are valid.
+        args:
+          - --verbose
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: "v4.0.0-alpha.8"
+    hooks:
+      - id: prettier
+        additional_dependencies:
+          - "prettier@3.5.0"

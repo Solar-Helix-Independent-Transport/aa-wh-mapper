@@ -1,0 +1,106 @@
+{% extends 'wh_mapper/base.html' %}
+
+{% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+    <style>
+        #wh-mapper-loading,
+        #wh-mapper-error {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            min-height: 100vh;
+            color: #7a8099;
+        }
+
+        #wh-mapper-error {
+            display: none;
+            color: #ff5c7a;
+        }
+
+        .wh-mapper-spinner {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid #262a3a;
+            border-top-color: #7c5cff;
+            animation: wh-mapper-spin 0.8s linear infinite;
+        }
+
+        .wh-mapper-loading-text {
+            animation: wh-mapper-pulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes wh-mapper-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes wh-mapper-pulse {
+            0%, 100% {
+                opacity: 0.5;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div id="root">
+        <div id="wh-mapper-loading">
+            <div class="wh-mapper-spinner"></div>
+            <p class="wh-mapper-loading-text">{% translate "Loading YAWN…" %}</p>
+        </div>
+        <div id="wh-mapper-error">{% translate "Failed to load YAWN. Check the browser console for details." %}</div>
+    </div>
+    {{ ws_origin|json_script:"wh-mapper-ws-origin" }}
+{% endblock %}
+
+{% block extra_javascript %}
+    <script type="text/javascript">
+        (function () {
+            const BASE_URL = "{% static 'wh_mapper/' %}";
+
+            function loadCss(files) {
+                files.forEach(function (href) {
+                    const link = document.createElement("link");
+                    link.rel = "stylesheet";
+                    link.href = BASE_URL + href;
+                    document.head.appendChild(link);
+                });
+            }
+
+            function loadScript(src) {
+                return new Promise(function (resolve, reject) {
+                    const tag = document.createElement("script");
+                    tag.type = "module";
+                    tag.src = BASE_URL + src;
+                    tag.onload = resolve;
+                    tag.onerror = reject;
+                    document.head.appendChild(tag);
+                });
+            }
+
+            fetch(BASE_URL + "manifest.json?v={{ version }}")
+                .then(function (response) { return response.json(); })
+                .then(function (manifest) {
+                    const entry = manifest["index.html"];
+                    (entry.css || []).forEach(function (css) { loadCss([css]); });
+                    return Promise.all((entry.imports || []).map(function (key) {
+                        return loadScript(manifest[key].file);
+                    })).then(function () { return loadScript(entry.file); });
+                })
+                .catch(function (error) {
+                    console.error("Unable to load YAWN's JavaScript bundle", error);
+                    document.getElementById("wh-mapper-loading").style.display = "none";
+                    document.getElementById("wh-mapper-error").style.display = "flex";
+                });
+        })();
+    </script>
+{% endblock extra_javascript %}

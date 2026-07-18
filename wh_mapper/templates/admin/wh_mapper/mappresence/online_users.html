@@ -1,0 +1,56 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; {% translate 'Currently online' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <p>
+    {% blocktranslate count counter=online_users|length %}
+      {{ counter }} user is currently online.
+    {% plural %}
+      {{ counter }} users are currently online.
+    {% endblocktranslate %}
+  </p>
+
+  {% if online_users %}
+  <table id="result_list">
+    <thead>
+      <tr>
+        <th scope="col">{% translate "User" %}</th>
+        <th scope="col">{% translate "Map(s) open" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in online_users %}
+      <tr class="{% cycle 'row1' 'row2' %}">
+        <th scope="row">{{ entry.user.get_username }}</th>
+        <td>
+          <ul style="margin: 0; padding-left: 1.2em;">
+            {% for presence in entry.presences %}
+            <li>
+              {{ presence.map.name }}
+              <span style="color: var(--body-quiet-color);">
+                &mdash; {% blocktranslate with duration=presence.connected_at|timesince %}open for {{ duration }}{% endblocktranslate %}
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>{% translate "No one has a map open right now." %}</p>
+  {% endif %}
+
+</div>
+{% endblock %}

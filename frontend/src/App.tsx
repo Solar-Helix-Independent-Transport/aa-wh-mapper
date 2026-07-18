@@ -1,0 +1,77 @@
+import { useState } from "react";
+import {
+  BrowserRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import "./App.css";
+import { WH_MAPPER_URL_PREFIX } from "./constants";
+import { AppBrand } from "./components/AppBrand";
+import { MapList } from "./components/MapList";
+import { MapView } from "./components/MapView";
+import { TrackedCharactersPanel } from "./components/TrackedCharactersPanel";
+
+function MapListRoute() {
+  const navigate = useNavigate();
+  return <MapList onOpen={(map) => navigate(`/maps/${map.id}`)} />;
+}
+
+function MapViewRoute() {
+  const { mapId } = useParams();
+  const id = Number(mapId);
+  if (!mapId || Number.isNaN(id)) {
+    return <p className="error">Invalid map.</p>;
+  }
+  return <MapView mapId={id} />;
+}
+
+function AppShell() {
+  const location = useLocation();
+  const isMapView = location.pathname.startsWith("/maps/");
+  const [showTracking, setShowTracking] = useState(false);
+
+  return (
+    <div className="app-shell">
+      {/* MapView renders its own combined brand + action-buttons bar as a
+          single navbar row - a plain brand-only header here would just
+          duplicate it, so this one only appears on the map list. Tracking is
+          global to the user (not tied to any one map), so it needs an entry
+          point here too - otherwise there'd be no way to manage it without
+          first opening some map. */}
+      {!isMapView && (
+        <header className="app-header">
+          <AppBrand />
+          <div className="map-toolbar-actions">
+            <button type="button" onClick={() => setShowTracking(true)}>
+              Tracked characters
+            </button>
+          </div>
+        </header>
+      )}
+
+      {showTracking && (
+        <TrackedCharactersPanel onClose={() => setShowTracking(false)} />
+      )}
+
+      <main className={isMapView ? "app-main app-main-full" : "app-main"}>
+        <Routes>
+          <Route path="/" element={<MapListRoute />} />
+          <Route path="/maps/:mapId" element={<MapViewRoute />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter basename={WH_MAPPER_URL_PREFIX}>
+      <AppShell />
+    </BrowserRouter>
+  );
+}
+
+export default App;

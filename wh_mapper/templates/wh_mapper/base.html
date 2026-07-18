@@ -1,0 +1,84 @@
+{% load i18n %}<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block page_title %}{% translate "YAWN" %}{% endblock %}</title>
+    {% include 'bundles/fontawesome.html' %}
+    <style>
+        html, body {
+            margin: 0;
+            min-height: 100vh;
+            background: #0b0d14;
+            color: #c7cbe0;
+            font: 15px/1.5 system-ui, sans-serif;
+        }
+
+        .wh-mapper-messages {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 360px;
+        }
+
+        .wh-mapper-message {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #262a3a;
+            background: #12141d;
+            color: #f1f2f8;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        }
+
+        .wh-mapper-message.success { border-color: #4ade80; }
+        .wh-mapper-message.info { border-color: #7c5cff; }
+        .wh-mapper-message.warning { border-color: #ffb454; }
+        .wh-mapper-message.danger,
+        .wh-mapper-message.error { border-color: #ff5c7a; }
+
+        .wh-mapper-message-close {
+            background: none;
+            border: none;
+            color: inherit;
+            opacity: 0.6;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .wh-mapper-message-close:hover {
+            opacity: 1;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if messages %}
+        <div class="wh-mapper-messages">
+            {% for message in messages %}
+                <div class="wh-mapper-message {{ message.level_tag }}">
+                    <span>{{ message }}</span>
+                    <button
+                        type="button"
+                        class="wh-mapper-message-close"
+                        aria-label="{% translate 'Close' %}"
+                        onclick="this.parentElement.remove()"
+                    >&times;</button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+    {% block extra_javascript %}{% endblock %}
+</body>
+</html>

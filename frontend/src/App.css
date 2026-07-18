@@ -1,0 +1,1331 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.app-brand:hover h1 {
+  color: var(--accent-bright);
+}
+
+.map-title {
+  min-width: 0;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  font-size: 16px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Push the action buttons to the far right of the bar, brand (+ title) pinned left. */
+.map-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 0;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--accent-bright);
+}
+
+.link-button:disabled {
+  color: var(--text-dim);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.link-button:disabled:hover {
+  color: var(--text-dim);
+}
+
+.app-main {
+  flex: 1;
+  padding: 24px;
+}
+
+.dim {
+  color: var(--text-dim);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.loading-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 200px;
+  width: 100%;
+}
+
+.loading-state-text {
+  animation: wh-mapper-pulse 1.6s ease-in-out infinite;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: wh-mapper-spin 0.8s linear infinite;
+}
+
+@keyframes wh-mapper-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wh-mapper-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.map-list {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.new-map-form {
+  display: flex;
+  gap: 8px;
+}
+
+.new-map-form input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+}
+
+.new-map-form button,
+.button-primary {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+}
+
+.new-map-form button:disabled,
+.button-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.map-search-input {
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+}
+
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.map-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.map-card:hover {
+  border-color: var(--accent);
+}
+
+.map-card-name {
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
+.map-card-owner {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.map-card-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.map-card-rename-input {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
+.map-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.map-card:hover .map-card-actions,
+.map-card:focus-within .map-card-actions {
+  opacity: 1;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.badge-private {
+  color: var(--text-dim);
+}
+
+.badge-shared {
+  color: var(--accent-bright);
+  border-color: var(--accent);
+}
+
+.app-main-full {
+  padding: 0;
+  display: flex;
+}
+
+/* Map view */
+
+.map-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* A hard viewport-relative cap, not just flex:1 - every ancestor up to
+  <body> only sets min-height:100vh (a floor), so with a tall
+  SignaturePanel (many signatures) nothing stops this from growing past
+  one viewport height, and .map-canvas-wrapper/ReactFlow would measure
+  that inflated height too, throwing off setCenter/fitView math. `vh` is
+  resolved against the viewport regardless of ancestor sizing, so this
+  caps it correctly without touching the other (intentionally
+  page-scrolling) routes. */
+  height: 100vh;
+  min-height: 0;
+}
+
+.map-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Shared by both header bars (the map list's plain .app-header and
+MapView's .app-header.map-toolbar) so the "Tracked characters" button
+looks and sits the same on both screens instead of just the map view. */
+.app-header button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.app-header button:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.map-view-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.map-canvas-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.action-error-toast {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 420px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--danger);
+  background: var(--bg-raised);
+  color: var(--danger);
+  font-size: 13px;
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.5);
+}
+
+.action-error-toast button {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* System nodes */
+
+.system-node {
+  min-width: 128px;
+  max-width: 170px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.4);
+  font-size: 10px;
+}
+
+.system-node .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+  border: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.system-node:hover .react-flow__handle {
+  opacity: 1;
+  background: var(--text-dim);
+}
+
+.system-node .react-flow__handle:hover,
+.system-node .react-flow__handle.connectingfrom,
+.system-node .react-flow__handle.connectingto {
+  opacity: 1;
+  background: var(--accent-bright);
+}
+
+.edge-label {
+  position: absolute;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-bright);
+  font-size: 9px;
+  font-family: monospace;
+  line-height: 1.4;
+  pointer-events: all;
+  white-space: nowrap;
+}
+
+.edge-label-end {
+  padding: 0 2px;
+  font-size: 8px;
+  color: var(--text-dim);
+  border-color: transparent;
+  background: var(--bg);
+}
+
+.edge-label-critical {
+  font-size: 8px;
+  font-weight: bold;
+  color: var(--danger);
+  border-color: var(--danger);
+  animation: wh-mapper-pulse 1.2s ease-in-out infinite;
+}
+
+.eol-critical-badge {
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: bold;
+  animation: wh-mapper-pulse 1.2s ease-in-out infinite;
+}
+
+.signature-panel-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.map-legend {
+  position: relative;
+}
+
+.map-legend button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.map-legend button:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.map-legend-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.map-legend-sections {
+  display: flex;
+  gap: 24px;
+}
+
+.map-legend-hint {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: normal;
+  max-width: 420px;
+}
+
+.map-legend-section h5 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.map-legend-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-legend-section li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.legend-swatch {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legend-swatch-ring {
+  background: transparent;
+  border: 2px solid;
+}
+
+.legend-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  margin: 0 2.5px;
+}
+
+.legend-line {
+  flex-shrink: 0;
+  width: 20px;
+  border-top: 2px solid;
+}
+
+.legend-line-dashed {
+  border-top-style: dashed;
+}
+
+.legend-badge {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-bright);
+  font-size: 9px;
+  font-family: monospace;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.legend-badge-critical {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: bold;
+}
+
+.system-node-occupied {
+  border-color: var(--success);
+  box-shadow: 0 0 0 1px var(--success);
+}
+
+.system-node-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.system-node-occupied.system-node-selected {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--success),
+    0 0 0 3px var(--accent-bg);
+}
+
+.system-node-pinned {
+  border-color: #e8b923;
+  box-shadow: 0 0 0 1px #e8b923;
+}
+
+/* Bulk-selection (box-select/ctrl-click, for multi-delete) - a dashed
+outline so it reads as distinct from system-node-selected's solid ring
+(the single system shown in the side panel). Both can apply at once. */
+.system-node-multiselected {
+  outline: 2px dashed var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.system-node-pin {
+  color: #e8b923;
+  font-size: 8px;
+}
+
+.system-node-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border);
+}
+
+.system-node-name {
+  font-weight: 600;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* `margin-left: auto` (rather than `justify-content: space-between` on the
+titlebar) pushes just this badge to the row's right edge - with the pin
+icon also present, space-between split the row's free space into two
+roughly-equal gaps instead, making the name drift away from the pin
+instead of sitting right next to it. */
+.system-node-type {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 7px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
+.system-node-owner {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.system-node-owner-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.system-node-body {
+  padding: 2px 4px 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.system-node-location {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px 3px;
+  font-size: 8px;
+  color: var(--text-dim);
+}
+
+.system-node-place {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Titlebar background/text is colored by the system's space type - both the
+name and the type label (in .system-node-type) inherit `color` from here. */
+.space-highsec {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.22);
+}
+
+.space-lowsec {
+  color: #ffb454;
+  background: rgba(255, 180, 84, 0.22);
+}
+
+.space-nullsec {
+  color: #ff5c7a;
+  background: rgba(255, 92, 122, 0.22);
+}
+
+.space-wormhole {
+  color: #a68cff;
+  background: rgba(166, 140, 255, 0.24);
+}
+
+.space-pochven,
+.space-abyssal {
+  color: #ff8cf0;
+  background: rgba(255, 140, 240, 0.24);
+}
+
+.space-unknown {
+  color: var(--text-dim);
+  background: var(--bg-inset);
+}
+
+.system-node-effect {
+  font-style: italic;
+}
+
+.system-node-characters {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+.system-node-character-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--text);
+}
+
+.system-node-character-dot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--text-dim);
+}
+
+.system-node-character-dot.own {
+  background: var(--success);
+  box-shadow: 0 0 0 1px var(--accent-bg);
+}
+
+.tracked-status-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--text-dim);
+}
+
+.tracked-status-dot.live {
+  background: var(--success);
+}
+
+.entry-row-stale {
+  opacity: 0.6;
+}
+
+.entry-row-hidden {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.system-node-character-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Signature panel */
+
+.signature-panel-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.signature-panel-resize-handle {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+.signature-panel-resize-handle:hover,
+.signature-panel-resize-handle:active {
+  background: var(--accent);
+  opacity: 0.4;
+}
+
+.signature-panel-hide-button,
+.signature-panel-show-button {
+  z-index: 6;
+  width: 20px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.signature-panel-hide-button {
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.signature-panel-show-button {
+  align-self: center;
+}
+
+.signature-panel-hide-button:hover,
+.signature-panel-show-button:hover {
+  color: var(--accent-bright);
+  border-color: var(--accent);
+}
+
+.signature-panel {
+  width: 100%;
+  border-left: 1px solid var(--border);
+  background: var(--bg-raised);
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  font-size: 15px;
+}
+
+.system-finder input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+  font-size: 14px;
+}
+
+.system-finder input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.signature-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.signature-panel-header h3 {
+  font-size: 19px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signature-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.signature-panel-empty-message {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.signature-panel h4 {
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Row and its controls flow as one wrapping group rather than the title
+always sitting on its own line: on a wide enough panel (this is
+drag-resizable, see MapView.tsx) everything fits on a single line, and it
+only drops the controls to a line of their own below once the panel is
+too narrow to fit both - no separate wide/narrow layout to maintain. */
+.entry-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-inset);
+  font-size: 15px;
+}
+
+.entry-row select {
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 7px;
+  font-size: 14px;
+}
+
+/* Title (name/signature id) and the remove button. Grows to fill any
+leftover space on the row, but keeps a minimum width so a wide set of
+controls wraps to a line of its own instead of clipping the title down to
+a few characters. */
+.entry-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 140px;
+  min-width: 100px;
+}
+
+.entry-row-title span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Overrides the flex:1 above - a fixed-size status dot in the title row
+(e.g. tracked-characters live/offline indicator) shouldn't stretch. */
+.entry-row-title .tracked-status-dot {
+  flex: 0 0 auto;
+}
+
+.entry-row-title .link-button.danger {
+  flex-shrink: 0;
+}
+
+.entry-row-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.link-button.danger {
+  color: var(--danger);
+}
+
+/* A small bordered button for inline actions within a row (e.g. "Link to
+other system…" in the signature panel) that should read as a distinct
+action rather than blend in as plain text like .link-button does. */
+.button-secondary {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.button-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggle-switch-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+.toggle-switch-slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-bright);
+  transition: transform 0.15s ease;
+}
+
+.toggle-switch input:checked + .toggle-switch-slider {
+  background: var(--accent);
+}
+
+.toggle-switch input:checked + .toggle-switch-slider::before {
+  transform: translateX(14px);
+}
+
+.toggle-switch input:focus-visible + .toggle-switch-slider {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.add-signature-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.add-signature-form input,
+.add-signature-form select {
+  flex: 1;
+  min-width: 90px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+  font-size: 14px;
+}
+
+.add-signature-form button {
+  flex-basis: 100%;
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+  font-size: 14px;
+}
+
+.sig-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sig-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+  font-size: 14px;
+}
+
+.icon-button {
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.icon-button:hover {
+  color: var(--accent-bright);
+  border-color: var(--accent);
+}
+
+.icon-button-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--text-bright);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.sig-type-filter {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sig-type-filter-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  margin-top: 4px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.sig-type-filter-dropdown label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.paste-signatures-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.paste-signatures-form textarea {
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+  font-size: 13px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.paste-signatures-form button {
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+  font-size: 14px;
+}
+
+/* Dialogs */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  width: 360px;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialog input,
+.dialog select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+  width: 100%;
+}
+
+.dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.search-results li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.search-results li:hover {
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+}
+
+.scope-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.scope-tab {
+  flex: 1;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.scope-tab.active {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.share-existing {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.track-character-link {
+  display: block;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+  text-decoration: none;
+}
+
+.track-character-link:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 160px;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+}
+
+.context-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.context-menu-separator {
+  margin: 4px 6px;
+  border-top: 1px solid var(--border);
+}
+
+.context-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: var(--bg-inset);
+  color: var(--accent-bright);
+}
+
+.context-menu-item:disabled {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.context-menu-item.danger {
+  color: var(--danger);
+}
+
+.context-menu-item.danger:hover {
+  background: var(--bg-inset);
+}
+
+.context-menu-arrow {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.context-menu-submenu {
+  position: absolute;
+  top: -4px;
+  left: 100%;
+  z-index: 101;
+  margin-left: 2px;
+  min-width: 160px;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}

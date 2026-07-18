@@ -1,0 +1,68 @@
+:root {
+  --bg: #0b0d14;
+  --bg-raised: #12141d;
+  --bg-inset: #191c28;
+  --border: #262a3a;
+  --text: #c7cbe0;
+  --text-dim: #7a8099;
+  --text-bright: #f1f2f8;
+  --accent: #7c5cff;
+  --accent-bright: #a68cff;
+  --accent-bg: rgba(124, 92, 255, 0.14);
+  --danger: #ff5c7a;
+  --warning: #ffb454;
+  --success: #4ade80;
+
+  --sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg);
+  font: 15px/1.5 var(--sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  color: var(--text-bright);
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+select {
+  font: inherit;
+}
+
+a {
+  color: var(--accent-bright);
+}
+
+.mono {
+  font-family: var(--mono);
+}
