@@ -58,6 +58,7 @@ class MapOut(Schema):
     created_at: datetime
     is_owner: bool
     can_edit_sharing: bool
+    active_users: int
 
 
 class MapCreate(Schema):

@@ -161,6 +161,14 @@ export function MapList({ onOpen }: Props) {
                   <span className={`badge badge-${m.visibility}`}>
                     {m.visibility}
                   </span>
+                  {m.active_users > 0 && (
+                    <span
+                      className="map-card-active-users"
+                      title={`${m.active_users} active user${m.active_users === 1 ? "" : "s"}`}
+                    >
+                      <i className="fas fa-users" /> {m.active_users}
+                    </span>
+                  )}
                 </div>
                 <div
                   className="map-card-actions"
@@ -199,7 +207,17 @@ export function MapList({ onOpen }: Props) {
           <ul className="map-cards">
             {shared.map((m) => (
               <li key={m.id} className="map-card" onClick={() => onOpen(m)}>
-                <span className="map-card-name">{m.name}</span>
+                <div className="map-card-info">
+                  <span className="map-card-name">{m.name}</span>
+                  {m.active_users > 0 && (
+                    <span
+                      className="map-card-active-users"
+                      title={`${m.active_users} active user${m.active_users === 1 ? "" : "s"}`}
+                    >
+                      <i className="fas fa-users" /> {m.active_users}
+                    </span>
+                  )}
+                </div>
                 <span className="map-card-owner">by {m.owner_name}</span>
               </li>
             ))}

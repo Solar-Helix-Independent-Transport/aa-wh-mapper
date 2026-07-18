@@ -9,6 +9,7 @@ export interface MapOut {
   created_at: string;
   is_owner: boolean;
   can_edit_sharing: boolean;
+  active_users: number;
 }
 
 // Who controls a solar system - an NPC empire/pirate faction, or a player

@@ -254,6 +254,14 @@
   border-color: var(--accent);
 }
 
+.map-card-active-users {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-bright);
+  font-size: 12px;
+}
+
 .app-main-full {
   padding: 0;
   display: flex;

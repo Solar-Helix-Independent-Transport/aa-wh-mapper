@@ -144,6 +144,10 @@ def map_to_schema(map_obj: Map, request) -> dict:
         "created_at": map_obj.created_at,
         "is_owner": map_obj.owner_id == request.user.id,
         "can_edit_sharing": can_edit_sharing(request, map_obj),
+        "active_users": MapPresence.objects.filter(map=map_obj)
+        .values("user_id")
+        .distinct()
+        .count(),
     }
 
 
