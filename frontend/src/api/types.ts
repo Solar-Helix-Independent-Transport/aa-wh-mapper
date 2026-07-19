@@ -121,7 +121,10 @@ export interface MapStateOut {
 // signature attached yet (see wh_mapper.tasks._grow_map_for_character).
 export interface JumpNeedsSignaturePrompt {
   connection_id: number;
-  character_name: string;
+  // Null when reopened manually from the map's "pending signatures" button
+  // rather than delivered live off a character's jump - see MapView's
+  // reopenPendingSignatures.
+  character_name: string | null;
   old_map_system_id: number;
   new_map_system_id: number;
 }

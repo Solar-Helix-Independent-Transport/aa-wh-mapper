@@ -220,22 +220,24 @@ export function SignaturePanel({
   };
 
   const sigSearchQuery = sigSearch.trim().toLowerCase();
-  const visibleSignatures = signatures.filter((sig) => {
-    if (sig.is_hidden && !showHidden) {
-      return false;
-    }
-    if (hiddenSigTypes.has(sig.sig_type)) {
-      return false;
-    }
-    if (!sigSearchQuery) {
-      return true;
-    }
-    return (
-      sig.signature_id.toLowerCase().includes(sigSearchQuery) ||
-      sig.sig_type.toLowerCase().includes(sigSearchQuery) ||
-      Boolean(sig.wormhole_type?.code.toLowerCase().includes(sigSearchQuery))
-    );
-  });
+  const visibleSignatures = signatures
+    .filter((sig) => {
+      if (sig.is_hidden && !showHidden) {
+        return false;
+      }
+      if (hiddenSigTypes.has(sig.sig_type)) {
+        return false;
+      }
+      if (!sigSearchQuery) {
+        return true;
+      }
+      return (
+        sig.signature_id.toLowerCase().includes(sigSearchQuery) ||
+        sig.sig_type.toLowerCase().includes(sigSearchQuery) ||
+        Boolean(sig.wormhole_type?.code.toLowerCase().includes(sigSearchQuery))
+      );
+    })
+    .sort((a, b) => a.signature_id.localeCompare(b.signature_id));
 
   const handleAddSignature = async (event: React.FormEvent) => {
     event.preventDefault();

@@ -232,6 +232,36 @@ export function MapView({ mapId }: Props) {
       current.filter((p) => p.connection_id !== connectionId),
     );
 
+  // Wormhole connections with no signature linked on either end - independent
+  // of jumpQueue (which only holds prompts seen live over the socket this
+  // session, and loses them on skip/refresh), so this stays accurate even
+  // after a reload or a dismissed prompt.
+  const pendingConnections = state.connections.filter(
+    (c) =>
+      c.connection_type === "wormhole" &&
+      c.top_signature_id === null &&
+      c.bottom_signature_id === null,
+  );
+
+  // Re-adds a prompt (with no character_name, since these weren't just seen
+  // live) for any pending connection that isn't already queued - lets the
+  // viewer get back to a connection they skipped, or one from before their
+  // last refresh.
+  const reopenPendingSignatures = () => {
+    setJumpQueue((current) => {
+      const queuedIds = new Set(current.map((p) => p.connection_id));
+      const restored = pendingConnections
+        .filter((c) => !queuedIds.has(c.id))
+        .map((c) => ({
+          connection_id: c.id,
+          character_name: null,
+          old_map_system_id: c.top_system_id,
+          new_map_system_id: c.bottom_system_id,
+        }));
+      return restored.length > 0 ? [...current, ...restored] : current;
+    });
+  };
+
   const openAddSystem = (position?: { x: number; y: number }) => {
     setAddSystemPosition(position);
     setShowAddSystem(true);
@@ -276,6 +306,15 @@ export function MapView({ mapId }: Props) {
           <button type="button" onClick={() => setShowTracking(true)}>
             Tracked characters ({state.tracked_characters.length})
           </button>
+          {pendingConnections.length > 0 && (
+            <button
+              type="button"
+              onClick={reopenPendingSignatures}
+              title="Reopen the 'which signature was that' prompt for any wormhole connection still missing one"
+            >
+              Pending signatures ({pendingConnections.length})
+            </button>
+          )}
         </div>
       </div>
 
