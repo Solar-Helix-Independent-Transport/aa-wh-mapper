@@ -485,9 +485,9 @@ class TestConnectionTimeStatus(TestCase):
         )
         self.assertEqual(connection_time_status(connection), "red")
 
-    def test_unknown_wormhole_type_is_red(self):
+    def test_unknown_wormhole_type_is_unknown(self):
         connection = self._make_connection(age_minutes=5, wormhole_type=None)
-        self.assertEqual(connection_time_status(connection), "red")
+        self.assertEqual(connection_time_status(connection), "unknown")
 
 
 class TestGetOrCreateConnection(TestCase):

@@ -23,6 +23,7 @@ export const TIME_STATUS_COLOR: Record<string, string> = {
   green: "#4ade80",
   orange: "#ffb454",
   red: "#ff5c7a",
+  unknown: "#7ea6c9",
 };
 
 // Stargates/Ansiblexes don't decay, so they get a fixed look instead of the

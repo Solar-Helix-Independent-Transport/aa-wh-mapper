@@ -202,7 +202,7 @@ class WormholeConnectionOut(Schema):
     life_status_marked_at: datetime | None = None
     mass_status: MassStatusLiteral
     ship_size_limit: ShipSizeLiteral
-    time_status: Literal["green", "orange", "red"]
+    time_status: Literal["green", "orange", "red", "unknown"]
     created_by_id: int | None = None
     created_at: datetime
     updated_at: datetime

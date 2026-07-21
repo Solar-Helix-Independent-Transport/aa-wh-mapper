@@ -94,6 +94,11 @@ function SystemNodeImpl({
             aria-hidden="true"
           />
         )}
+        {solarSystem.security_status !== null && (
+          <span className="system-node-security">
+            {solarSystem.security_status.toFixed(1)}
+          </span>
+        )}
         <span className="system-node-name">
           {system.label || solarSystem.name}
         </span>

@@ -127,7 +127,14 @@ export function MapLegend() {
                       className="legend-line"
                       style={{ borderColor: TIME_STATUS_COLOR.red }}
                     />
-                    Wormhole - little time left / unknown
+                    Wormhole - little time left
+                  </li>
+                  <li>
+                    <span
+                      className="legend-line"
+                      style={{ borderColor: TIME_STATUS_COLOR.unknown }}
+                    />
+                    Wormhole - unidentified type
                   </li>
                   <li>
                     <span

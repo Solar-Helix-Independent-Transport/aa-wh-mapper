@@ -491,8 +491,9 @@ def connection_effective_life_status(connection, now=None) -> str:
 def connection_time_status(connection) -> str:
     """A traffic-light summary of how much *time* (not mass) a wormhole has
     left: green (plenty of time left), orange (time running out), red
-    (close to/past its expected collapse, or unknown - no wormhole
-    type/max_stable_time to judge by, so treat it as the risky case).
+    (close to/past its expected collapse), or unknown (no wormhole
+    type/max_stable_time to judge by yet, and no manually-picked critical
+    bucket either - a neutral "no data" state rather than the risky one).
     Unrelated to mass_status - a connection's mass and its remaining
     lifetime decay independently."""
 
@@ -504,7 +505,7 @@ def connection_time_status(connection) -> str:
 
     wormhole_type = connection_wormhole_type(connection)
     if wormhole_type is None or wormhole_type.max_stable_time is None:
-        return "red"
+        return "unknown"
 
     age_minutes = (timezone.now() - connection.created_at).total_seconds() / 60
     fraction_elapsed = age_minutes / wormhole_type.max_stable_time

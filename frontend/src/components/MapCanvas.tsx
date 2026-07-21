@@ -242,7 +242,8 @@ export function MapCanvas({
         createdAt: connection.created_at,
         style: FIXED_CONNECTION_STYLE[connection.connection_type] ?? {
           stroke:
-            TIME_STATUS_COLOR[connection.time_status] ?? TIME_STATUS_COLOR.red,
+            TIME_STATUS_COLOR[connection.time_status] ??
+            TIME_STATUS_COLOR.unknown,
           strokeWidth: 2,
           // Dashing is mass-based (nearly depleted), not time-based -
           // color already carries the time/life-left signal above, so

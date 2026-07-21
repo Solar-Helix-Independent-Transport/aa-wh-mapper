@@ -83,7 +83,7 @@ export interface WormholeConnectionOut {
   life_status_marked_at: string | null;
   mass_status: string;
   ship_size_limit: string;
-  time_status: "green" | "orange" | "red";
+  time_status: "green" | "orange" | "red" | "unknown";
   created_by_id: number | null;
   created_at: string;
   updated_at: string;
