@@ -763,13 +763,13 @@ are set by the system's space type - .system-node-name overrides this
 
 /* Signature panel */
 
-.signature-panel-wrapper {
+.resizable-panel-wrapper {
   position: relative;
   flex-shrink: 0;
   display: flex;
 }
 
-.signature-panel-resize-handle {
+.resizable-panel-resize-handle {
   position: absolute;
   left: -4px;
   top: 0;
@@ -779,14 +779,14 @@ are set by the system's space type - .system-node-name overrides this
   z-index: 5;
 }
 
-.signature-panel-resize-handle:hover,
-.signature-panel-resize-handle:active {
+.resizable-panel-resize-handle:hover,
+.resizable-panel-resize-handle:active {
   background: var(--accent);
   opacity: 0.4;
 }
 
-.signature-panel-hide-button,
-.signature-panel-show-button {
+.resizable-panel-hide-button,
+.resizable-panel-show-button {
   z-index: 6;
   width: 20px;
   height: 48px;
@@ -801,19 +801,19 @@ are set by the system's space type - .system-node-name overrides this
   cursor: pointer;
 }
 
-.signature-panel-hide-button {
+.resizable-panel-hide-button {
   position: absolute;
   left: -20px;
   top: 50%;
   transform: translateY(-50%);
 }
 
-.signature-panel-show-button {
+.resizable-panel-show-button {
   align-self: center;
 }
 
-.signature-panel-hide-button:hover,
-.signature-panel-show-button:hover {
+.resizable-panel-hide-button:hover,
+.resizable-panel-show-button:hover {
   color: var(--accent-bright);
   border-color: var(--accent);
 }
@@ -1347,4 +1347,546 @@ action rather than blend in as plain text like .link-button does. */
   border: 1px solid var(--border);
   background: var(--bg-raised);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Route planner (RouteFinder, SharedRoute, RouteDiagram, RouteLegRow,
+ConnectionFlagsPanel) */
+
+.nav-link {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.nav-link:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+/* Full-width, MapView-shaped layout: a toolbar row, then a sidebar +
+diagram-pane body filling the rest of the viewport (same treatment as
+.map-view/.map-view-body/.map-canvas-wrapper). */
+
+/* flex:1 within .app-main-full's remaining space below the shared
+.app-header, not a hardcoded 100vh - unlike .map-view, this page still has
+that header showing above it (for the persistent "Navigate" link), so a
+100vh box here would double-count the header's height and push the whole
+page taller than the actual viewport. */
+.route-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.route-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  flex-wrap: wrap;
+}
+
+.route-toolbar-title {
+  align-self: center;
+  white-space: nowrap;
+}
+
+.route-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.route-toolbar-actions button,
+.route-toolbar > button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.route-toolbar-actions button:hover,
+.route-toolbar > button:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.route-toolbar > button:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+}
+
+.route-toolbar > button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.route-toolbar-error {
+  margin: 0;
+  padding: 8px 16px;
+}
+
+/* A strictly-shorter, risk-ignoring alternative route exists - see
+RouteAlternateBanner. Warning-colored while offering the risky route;
+danger-colored once you're actually looking at it, as a standing
+reminder rather than a one-time notice. */
+.route-alternate-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--warning);
+  background: rgba(255, 180, 84, 0.1);
+  color: var(--warning);
+  font-size: 13px;
+}
+
+.route-alternate-banner-risky {
+  border-bottom-color: var(--danger);
+  background: rgba(255, 92, 122, 0.1);
+  color: var(--danger);
+}
+
+.route-alternate-banner button {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+}
+
+.route-alternate-banner button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.route-view-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* Width/flex-shrink/positioning now come from .resizable-panel-wrapper
+(see ResizableSidePanel) - this is just the inner content's own
+padding/scroll/border, same split MapView's .signature-panel already uses
+against its own .resizable-panel-wrapper. */
+.route-sidebar {
+  width: 100%;
+  padding: 16px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .route-view-body {
+    flex-direction: column;
+  }
+
+  .resizable-panel-wrapper {
+    width: auto !important;
+  }
+
+  .route-sidebar {
+    max-height: 50vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+.route-diagram-pane {
+  flex: 1;
+  position: relative;
+}
+
+.route-diagram-placeholder {
+  width: 100%;
+  height: 100%;
+}
+
+.route-finder-picker {
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.route-finder-picker label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.route-finder-picker input {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+}
+
+.route-finder-picker .search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin-top: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.route-finder-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+  font-weight: 500;
+}
+
+.route-finder-selected button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-dim);
+  text-decoration: underline;
+  font-size: 12px;
+}
+
+.route-finder-selected button:hover {
+  color: var(--accent-bright);
+}
+
+.route-finder-pickers button {
+  flex-shrink: 0;
+  padding: 9px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+  font-size: 14px;
+}
+
+.route-finder-pickers button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.route-finder-empty {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.route-diagram {
+  position: absolute;
+  inset: 0;
+}
+
+.route-node-wrapper {
+  position: relative;
+}
+
+.route-node-index {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: var(--bg);
+  color: var(--accent-bright);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  line-height: 1;
+}
+
+.route-itinerary {
+  display: flex;
+  flex-direction: column;
+}
+
+.route-itinerary-item {
+  padding: 0;
+  border-radius: 4px;
+  transition: background-color 0.1s ease;
+}
+
+/* Matches SystemNode's own .system-node-selected treatment (App.css) -
+same "this is the selected one" visual language as the map, for the row
+that corresponds to whichever node was last clicked in RouteDiagram. */
+.route-itinerary-item-selected {
+  background: var(--accent-bg);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.route-itinerary-system {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
+.route-itinerary-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-right: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  color: var(--accent-bright);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  line-height: 1;
+}
+
+.route-itinerary-security {
+  display: inline-block;
+  width: 3.2em;
+  flex-shrink: 0;
+  margin-right: 8px;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 12px;
+  text-align: right;
+}
+
+.route-leg-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  /* Just enough to clear the connector line/dots (centered at 10px) - the
+  body sits right beside the line rather than under the name. */
+  padding-left: 20px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  min-height: 32px;
+}
+
+.route-leg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The line itself - color-only, no text (see routeLegColor/routeLegDashed) -
+same legend colors as the diagram's edges and MapLegend, centered dot
+markers at each end (see the pseudo-elements below). */
+.route-leg-connector {
+  position: absolute;
+  /* Centered on .route-itinerary-index's 20px-wide number badge (center
+  at 10px) - left is the line's own left edge, so offset by half its own
+  2px width to put its center, not its edge, at 10px. */
+  left: 9px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--route-leg-color);
+}
+
+.route-leg-connector-dashed {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--route-leg-color) 0,
+    var(--route-leg-color) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.route-leg-connector::before,
+.route-leg-connector::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--route-leg-color);
+}
+
+.route-leg-connector::before {
+  top: -2.5px;
+}
+
+.route-leg-connector::after {
+  bottom: -2.5px;
+}
+
+.route-leg-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.route-leg-status {
+  text-transform: capitalize;
+}
+
+.route-leg-summary .route-leg-status:not(:first-child)::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--border);
+}
+
+/* Stacked, not inline (see RouteLegRow) - a wormhole's two ends are
+scanned separately and can decay independently, so each gets its own
+line rather than running together as an undifferentiated pair. */
+.route-leg-signatures {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.route-leg-sig-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.route-leg-sig-system {
+  min-width: 70px;
+  color: var(--text-dim);
+}
+
+.route-leg-sig {
+  text-transform: none;
+  font-size: 11px;
+  color: var(--text-bright);
+}
+
+.route-leg-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.route-leg-controls select {
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.route-leg-controls .link-button {
+  font-size: 12px;
+}
+
+.route-leg-result {
+  color: var(--success);
+  font-size: 12px;
+}
+
+.route-share-button {
+  align-self: flex-start;
+  padding: 9px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+  font-size: 14px;
+}
+
+.route-share-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.shared-route-live-badge {
+  align-self: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--success);
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.connection-flags-group {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.connection-flags-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.connection-flags-group h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.connection-flag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 6px 0;
+}
+
+.connection-flag-row button {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.connection-flag-row button:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
 }

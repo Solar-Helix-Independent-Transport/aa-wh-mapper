@@ -77,8 +77,16 @@ export interface WormholeConnectionOut {
   connection_type: ConnectionType;
   top_system_id: number;
   bottom_system_id: number;
+  // top_system_id/bottom_system_id above are MapSystem ids, not comparable
+  // to a SolarSystemOut.id (e.g. RouteDetail.systems[].id) - use these
+  // instead when matching a connection's ends against solar-system-keyed
+  // data.
+  top_system_solar_system_id: number;
+  bottom_system_solar_system_id: number;
   top_signature_id: number | null;
   bottom_signature_id: number | null;
+  top_signature: SignatureOut | null;
+  bottom_signature: SignatureOut | null;
   life_status: string;
   life_status_marked_at: string | null;
   mass_status: string;
@@ -173,4 +181,61 @@ export interface SignatureBulkResult {
   removed_signature_ids: number[];
   removed_connection_ids: number[];
   removed_system_ids: number[];
+}
+
+export interface RouteLegOut {
+  connection_type: ConnectionType;
+  life_status: string | null;
+  mass_status: string | null;
+  map_id: number | null;
+  connection_id: number | null;
+  // Same WormholeConnectionOut shape the Map view uses (ship size,
+  // time_status, signature ids, etc.) - null for a stargate leg.
+  connection: WormholeConnectionOut | null;
+}
+
+export interface RouteDetail {
+  systems: SolarSystemOut[];
+  legs: RouteLegOut[];
+}
+
+export interface RouteOut {
+  found: boolean;
+  message: string | null;
+  route: RouteDetail | null;
+  // A strictly-shorter, risk-ignoring alternative `route` passed over -
+  // null when no such alternative exists.
+  alternate: RouteDetail | null;
+}
+
+export type RouteVisibility = "private" | "shared";
+
+export interface SharedRouteOut {
+  id: number;
+  owner_id: number;
+  start_system: SolarSystemOut;
+  end_system: SolarSystemOut;
+  visibility: RouteVisibility;
+  found: boolean;
+  systems: SolarSystemOut[];
+  legs: RouteLegOut[];
+  alternate: RouteDetail | null;
+  last_computed_at: string | null;
+  is_owner: boolean;
+}
+
+export interface ConnectionFlagOut {
+  id: number;
+  connection_id: number;
+  flagged_by_id: number;
+  flagged_by_name: string;
+  suggested_life_status: string | null;
+  suggested_mass_status: string | null;
+  suggests_collapsed: boolean;
+  created_at: string;
+}
+
+export interface ConnectionFlagAcceptResult {
+  deleted: boolean;
+  connection: WormholeConnectionOut | null;
 }

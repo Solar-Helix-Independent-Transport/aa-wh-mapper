@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   BrowserRouter,
+  Link,
   Route,
   Routes,
   useLocation,
@@ -12,6 +13,8 @@ import { WH_MAPPER_URL_PREFIX } from "./constants";
 import { AppBrand } from "./components/AppBrand";
 import { MapList } from "./components/MapList";
 import { MapView } from "./components/MapView";
+import { RouteFinder } from "./components/RouteFinder";
+import { SharedRoute } from "./components/SharedRoute";
 import { TrackedCharactersPanel } from "./components/TrackedCharactersPanel";
 
 function MapListRoute() {
@@ -28,9 +31,19 @@ function MapViewRoute() {
   return <MapView mapId={id} />;
 }
 
+function SharedRouteRoute() {
+  const { routeId } = useParams();
+  const id = Number(routeId);
+  if (!routeId || Number.isNaN(id)) {
+    return <p className="error">Invalid route.</p>;
+  }
+  return <SharedRoute routeId={id} />;
+}
+
 function AppShell() {
   const location = useLocation();
   const isMapView = location.pathname.startsWith("/maps/");
+  const isRouteView = location.pathname.startsWith("/route");
   const [showTracking, setShowTracking] = useState(false);
 
   return (
@@ -45,6 +58,9 @@ function AppShell() {
         <header className="app-header">
           <AppBrand />
           <div className="map-toolbar-actions">
+            <Link to="/route" className="nav-link">
+              Navigate
+            </Link>
             <button type="button" onClick={() => setShowTracking(true)}>
               Tracked characters
             </button>
@@ -56,10 +72,16 @@ function AppShell() {
         <TrackedCharactersPanel onClose={() => setShowTracking(false)} />
       )}
 
-      <main className={isMapView ? "app-main app-main-full" : "app-main"}>
+      <main
+        className={
+          isMapView || isRouteView ? "app-main app-main-full" : "app-main"
+        }
+      >
         <Routes>
           <Route path="/" element={<MapListRoute />} />
           <Route path="/maps/:mapId" element={<MapViewRoute />} />
+          <Route path="/route" element={<RouteFinder />} />
+          <Route path="/route/shared/:routeId" element={<SharedRouteRoute />} />
         </Routes>
       </main>
     </div>

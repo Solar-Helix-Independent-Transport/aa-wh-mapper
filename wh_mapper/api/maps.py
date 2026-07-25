@@ -126,7 +126,10 @@ class MapApiEndpoints:
                 map_system__map=map_obj
             ).select_related("wormhole_type")
             connections = map_obj.connections.select_related(
-                "top_signature__wormhole_type", "bottom_signature__wormhole_type"
+                "top_signature__wormhole_type",
+                "bottom_signature__wormhole_type",
+                "top_system",
+                "bottom_system",
             )
             # Global tracking: a character shows up on this map only while
             # it's currently online (is_active - see wh_mapper.tasks), its

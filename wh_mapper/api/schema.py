@@ -196,8 +196,22 @@ class WormholeConnectionOut(Schema):
     connection_type: Literal["wormhole", "stargate", "ansiblex"]
     top_system_id: int
     bottom_system_id: int
+    # top_system_id/bottom_system_id above are MapSystem ids (this
+    # connection's own FK target), not comparable to a SolarSystemOut.id
+    # (e.g. RouteDetail.systems[].id) - these are the actual underlying
+    # solar system ids, for a caller (like RouteDiagram) that needs to
+    # match a connection's ends against solar-system-keyed data.
+    top_system_solar_system_id: int
+    bottom_system_solar_system_id: int
     top_signature_id: int | None = None
     bottom_signature_id: int | None = None
+    # Full signature detail (code, type, identified wormhole type), not
+    # just the id - the Map view already resolves this itself from its own
+    # state.signatures, but a route leg (see RouteLegOut) has no such list
+    # to resolve against, so this is populated for every caller rather
+    # than adding a route-specific second field.
+    top_signature: SignatureOut | None = None
+    bottom_signature: SignatureOut | None = None
     life_status: LifeStatusLiteral
     life_status_marked_at: datetime | None = None
     mass_status: MassStatusLiteral
@@ -331,3 +345,99 @@ class RegionImportResult(Schema):
 
     systems_added: int
     connections_added: int
+
+
+class RouteLegOut(Schema):
+    """One hop of a computed route - see wh_mapper.pathfinding.RouteLeg.
+
+    map_id/connection_id are None for a stargate leg (sourced from the
+    static universe, not any Map) - present for wormhole/ansiblex legs so
+    the frontend can call the existing connection update/delete endpoints,
+    or the flag endpoints, directly from a route leg. `connection` carries
+    the same WormholeConnectionOut shape the Map view uses (ship size,
+    time_status, signature ids, etc.) - same source, same detail, no
+    separate route-specific shape.
+    """
+
+    connection_type: Literal["stargate", "wormhole", "ansiblex"]
+    life_status: LifeStatusLiteral | None = None
+    mass_status: MassStatusLiteral | None = None
+    map_id: int | None = None
+    connection_id: int | None = None
+    connection: WormholeConnectionOut | None = None
+
+
+class RouteDetail(Schema):
+    """The ordered path - len(legs) == len(systems) - 1"""
+
+    systems: list[SolarSystemOut]
+    legs: list[RouteLegOut]
+
+
+class RouteOut(Schema):
+    """Always-200 wrapper - found=False covers every unreachable case
+    uniformly (including a totally isolated system), no special pre-check
+    or 404 needed."""
+
+    found: bool
+    message: str | None = None
+    route: RouteDetail | None = None
+    # A strictly-shorter, risk-ignoring alternative `route` passed over -
+    # see wh_mapper.pathfinding.RouteComputation.alternate. None when no
+    # such alternative exists (the risk-weighted route is already fastest).
+    alternate: RouteDetail | None = None
+
+
+class RouteCreate(Schema):
+    """Payload to share a computed route - promotes it to a persisted,
+    live-updating Route."""
+
+    start_id: int
+    end_id: int
+
+
+class SharedRouteOut(Schema):
+    """A persisted, shared Route - see wh_mapper.models.Route"""
+
+    id: int
+    owner_id: int
+    start_system: SolarSystemOut
+    end_system: SolarSystemOut
+    visibility: Literal["private", "shared"]
+    found: bool
+    systems: list[SolarSystemOut]
+    legs: list[RouteLegOut]
+    # A strictly-shorter, risk-ignoring alternative to systems/legs above -
+    # see wh_mapper.pathfinding.RouteComputation.alternate.
+    alternate: RouteDetail | None = None
+    last_computed_at: datetime | None = None
+    is_owner: bool
+
+
+class ConnectionFlagCreate(Schema):
+    """Payload to suggest a connection status change - same vocabulary as
+    WormholeConnectionUpdate, but for a user without edit access to the
+    map (see wh_mapper.models.ConnectionFlag)."""
+
+    suggested_life_status: LifeStatusLiteral | None = None
+    suggested_mass_status: MassStatusLiteral | None = None
+    suggests_collapsed: bool = False
+
+
+class ConnectionFlagOut(Schema):
+    id: int
+    connection_id: int
+    flagged_by_id: int
+    flagged_by_name: str
+    suggested_life_status: LifeStatusLiteral | None = None
+    suggested_mass_status: MassStatusLiteral | None = None
+    suggests_collapsed: bool
+    created_at: datetime
+
+
+class ConnectionFlagAcceptResult(Schema):
+    """Result of accepting a flag - deleted=True means the suggestion was
+    "suggests_collapsed" and the connection no longer exists."""
+
+    deleted: bool
+    connection: WormholeConnectionOut | None = None

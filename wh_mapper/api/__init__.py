@@ -11,8 +11,10 @@ from django.conf import settings
 from wh_mapper import __version__
 from wh_mapper.api import (
     connections,
+    flags,
     maps,
     regions,
+    route,
     sharing,
     signatures,
     systems,
@@ -36,3 +38,5 @@ sharing.setup(api)
 tracking.setup(api)
 regions.setup(api)
 wormhole_types.setup(api)
+route.setup(api)
+flags.setup(api)

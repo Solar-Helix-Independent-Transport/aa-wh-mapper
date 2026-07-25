@@ -773,7 +773,7 @@ export function MapCanvas({
         colorMode="dark"
         fitView
       >
-        <Background color="#262a3a" gap={SNAP_GRID[0]} />
+        <Background />
         <Controls />
         <MapLegend />
       </ReactFlow>

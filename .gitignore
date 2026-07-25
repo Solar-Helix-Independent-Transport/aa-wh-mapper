@@ -15,3 +15,6 @@ __pycache__
 /coverage.xml
 alliance_auth.sqlite3
 .claude/
+.scratch/
+docs/
+CLAUDE.md

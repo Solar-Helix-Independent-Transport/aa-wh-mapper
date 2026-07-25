@@ -176,3 +176,12 @@ export const SIGNATURE_PANEL_WIDTH_STORAGE_KEY =
   "wh-mapper-signature-panel-width";
 export const SIGNATURE_PANEL_HIDDEN_STORAGE_KEY =
   "wh-mapper-signature-panel-hidden";
+
+// Same drag-to-resize pattern (see useResizablePanel), for RouteFinder/
+// SharedRoute's itinerary sidebar.
+export const ROUTE_SIDEBAR_DEFAULT_WIDTH = 340;
+export const ROUTE_SIDEBAR_MIN_WIDTH = 280;
+export const ROUTE_SIDEBAR_MAX_WIDTH = 800;
+export const ROUTE_SIDEBAR_WIDTH_STORAGE_KEY = "wh-mapper-route-sidebar-width";
+export const ROUTE_SIDEBAR_HIDDEN_STORAGE_KEY =
+  "wh-mapper-route-sidebar-hidden";

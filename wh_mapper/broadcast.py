@@ -11,8 +11,23 @@ from channels.layers import get_channel_layer
 from django.core.serializers.json import DjangoJSONEncoder
 
 # AA WH Mapper App
-from wh_mapper.consumers import _group_name
+from wh_mapper.consumers import _group_name, _route_group_name
 from wh_mapper.models import MapPresence
+
+
+def broadcast_route_event(route_id: int, event: str, data: dict) -> None:
+    """Fan out a Route recompute to every client connected to that route -
+    see wh_mapper.consumers.RouteConsumer and the wayfinder map's ticket 08.
+    """
+
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+
+    async_to_sync(channel_layer.group_send)(
+        _route_group_name(route_id),
+        {"type": "route.event", "payload": {"event": event, "data": _json_safe(data)}},
+    )
 
 
 def broadcast_map_event(map_id: int, event: str, data: dict) -> None:

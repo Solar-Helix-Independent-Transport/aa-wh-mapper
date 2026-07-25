@@ -28,13 +28,17 @@ from wh_mapper.constants import LOCATION_SCOPES
 @ensure_csrf_cookie
 @login_required
 @permission_required("wh_mapper.basic_access")
-def index(request: WSGIRequest, map_id: int | None = None) -> HttpResponse:
+def index(
+    request: WSGIRequest, map_id: int | None = None, route_id: int | None = None
+) -> HttpResponse:
     """
-    Renders the React SPA shell. `map_id` is accepted (but unused here) so
-    this same view can serve the "/maps/<id>/" deep-link route - the React
-    Router-based client picks it up from the URL itself.
+    Renders the React SPA shell. `map_id`/`route_id` are accepted (but
+    unused here) so this same view can serve the "/maps/<id>/" and
+    "/route/shared/<id>/" deep-link routes - the React Router-based client
+    picks the id up from the URL itself.
     :param request:
     :param map_id:
+    :param route_id:
     :return:
     """
 

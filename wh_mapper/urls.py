@@ -15,6 +15,9 @@ urlpatterns = [
     # to deep-link a specific map - Django just needs to serve the same SPA
     # shell here too, so a direct visit/refresh on that URL doesn't 404.
     path("maps/<int:map_id>/", views.index, name="map_detail"),
+    # Same reasoning, for the route-planner's own client-side routes.
+    path("route/", views.index, name="route_finder"),
+    path("route/shared/<int:route_id>/", views.index, name="shared_route_detail"),
     path("track/add/", views.add_tracked_character, name="add_tracked_character"),
     path("api/", api.urls),
 ]

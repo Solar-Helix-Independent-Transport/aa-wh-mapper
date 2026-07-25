@@ -17,6 +17,19 @@ from wh_mapper.broadcast import broadcast_map_event
 from wh_mapper.models import MapSystem, Signature, WormholeConnection
 
 
+def _recompute_routes_for_map(map_id: int) -> None:
+    """Deferred import - wh_mapper.tasks imports from wh_mapper.api.helpers
+    at module scope, which imports this whole wh_mapper.api package (for
+    api/__init__.py's endpoint registration), so a module-scope import here
+    would be circular. Same pattern wh_mapper.consumers already uses for
+    map_visible_to_user."""
+
+    # AA WH Mapper App
+    from wh_mapper.tasks import recompute_routes_for_map
+
+    recompute_routes_for_map.delay(map_id)
+
+
 class WormholeConnectionApiEndpoints:
     """WormholeConnection CRUD endpoints, nested under a Map"""
 
@@ -98,6 +111,7 @@ class WormholeConnectionApiEndpoints:
             out = connection_to_schema(connection)
             if connection_created:
                 broadcast_map_event(map_obj.id, "connection.added", out)
+                _recompute_routes_for_map(map_obj.id)
 
             return out
 
@@ -129,6 +143,7 @@ class WormholeConnectionApiEndpoints:
 
             out = connection_to_schema(connection)
             broadcast_map_event(map_obj.id, "connection.updated", out)
+            _recompute_routes_for_map(map_obj.id)
 
             return out
 
@@ -165,6 +180,7 @@ class WormholeConnectionApiEndpoints:
 
             out = connection_to_schema(connection)
             broadcast_map_event(map_obj.id, "connection.updated", out)
+            _recompute_routes_for_map(map_obj.id)
 
             return out
 
@@ -184,6 +200,7 @@ class WormholeConnectionApiEndpoints:
             connection.delete()
 
             broadcast_map_event(map_obj.id, "connection.removed", {"id": connection_id})
+            _recompute_routes_for_map(map_obj.id)
 
             return 204, None
 

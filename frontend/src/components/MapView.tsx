@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ReactFlowProvider } from "@xyflow/react";
 import { getMapState } from "../api/maps";
 import type {
@@ -14,26 +15,19 @@ import {
   SIGNATURE_PANEL_WIDTH_STORAGE_KEY,
 } from "../constants";
 import { useMapSocket } from "../hooks/useMapSocket";
+import { useResizablePanel } from "../hooks/useResizablePanel";
 import { AppBrand } from "./AppBrand";
+import { ConnectionFlagsPanel } from "./ConnectionFlagsPanel";
 import { IdentifyJumpSignatureDialog } from "./IdentifyJumpSignatureDialog";
 import { LoadingState } from "./LoadingState";
 import { MapCanvas } from "./MapCanvas";
+import { ResizableSidePanel } from "./ResizableSidePanel";
 import { SignaturePanel } from "./SignaturePanel";
 import { AddSystemDialog } from "./AddSystemDialog";
 import { ImportRegionDialog } from "./ImportRegionDialog";
 import { ShareDialog } from "./ShareDialog";
 import { TrackedCharactersPanel } from "./TrackedCharactersPanel";
 import { applyMapEvent } from "./mapEvents";
-
-function initialPanelWidth(): number {
-  const stored = Number(
-    localStorage.getItem(SIGNATURE_PANEL_WIDTH_STORAGE_KEY),
-  );
-  return stored >= SIGNATURE_PANEL_MIN_WIDTH &&
-    stored <= SIGNATURE_PANEL_MAX_WIDTH
-    ? stored
-    : SIGNATURE_PANEL_DEFAULT_WIDTH;
-}
 
 interface Props {
   mapId: number;
@@ -48,6 +42,7 @@ export function MapView({ mapId }: Props) {
     { x: number; y: number } | undefined
   >(undefined);
   const [showImportRegion, setShowImportRegion] = useState(false);
+  const [showFlags, setShowFlags] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showTracking, setShowTracking] = useState(false);
   // A queue, not a single slot: several tracked characters (or the same one,
@@ -56,65 +51,18 @@ export function MapView({ mapId }: Props) {
   // would silently drop everything but the most recent jump.
   const [jumpQueue, setJumpQueue] = useState<JumpNeedsSignaturePrompt[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [panelWidth, setPanelWidth] = useState<number>(initialPanelWidth);
-  const [panelHidden, setPanelHidden] = useState<boolean>(
-    () => localStorage.getItem(SIGNATURE_PANEL_HIDDEN_STORAGE_KEY) === "true",
-  );
-  const isResizingPanelRef = useRef(false);
-  // Holds the active drag's own listener-removal function while a resize is
-  // in progress, so the unmount effect below can tear it down if the
-  // component unmounts mid-drag (e.g. navigating away while the resize
-  // handle is held down) instead of leaking `document`-level listeners.
-  const resizeCleanupRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    localStorage.setItem(SIGNATURE_PANEL_WIDTH_STORAGE_KEY, String(panelWidth));
-  }, [panelWidth]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      SIGNATURE_PANEL_HIDDEN_STORAGE_KEY,
-      String(panelHidden),
-    );
-  }, [panelHidden]);
-
-  const handlePanelResizeStart = useCallback(
-    (event: React.MouseEvent) => {
-      event.preventDefault();
-      isResizingPanelRef.current = true;
-      const startX = event.clientX;
-      const startWidth = panelWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!isResizingPanelRef.current) {
-          return;
-        }
-        // The panel sits on the right edge of the screen, so dragging left
-        // (a negative clientX delta) should grow it.
-        const next = startWidth + (startX - moveEvent.clientX);
-        setPanelWidth(
-          Math.min(
-            Math.max(next, SIGNATURE_PANEL_MIN_WIDTH),
-            SIGNATURE_PANEL_MAX_WIDTH,
-          ),
-        );
-      };
-      const stopResizing = () => {
-        isResizingPanelRef.current = false;
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", stopResizing);
-        resizeCleanupRef.current = null;
-      };
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", stopResizing);
-      resizeCleanupRef.current = stopResizing;
-    },
-    [panelWidth],
-  );
-
-  useEffect(() => {
-    return () => resizeCleanupRef.current?.();
-  }, []);
+  const {
+    width: panelWidth,
+    hidden: panelHidden,
+    setHidden: setPanelHidden,
+    handleResizeStart: handlePanelResizeStart,
+  } = useResizablePanel({
+    defaultWidth: SIGNATURE_PANEL_DEFAULT_WIDTH,
+    minWidth: SIGNATURE_PANEL_MIN_WIDTH,
+    maxWidth: SIGNATURE_PANEL_MAX_WIDTH,
+    widthStorageKey: SIGNATURE_PANEL_WIDTH_STORAGE_KEY,
+    hiddenStorageKey: SIGNATURE_PANEL_HIDDEN_STORAGE_KEY,
+  });
 
   // Guards against refresh()'s GET racing a live delta: if a websocket event
   // arrives while a refresh is in flight, the fetched snapshot it eventually
@@ -292,8 +240,14 @@ export function MapView({ mapId }: Props) {
         <AppBrand />
         <h2 className="map-title">{state.map.name}</h2>
         <div className="map-toolbar-actions">
+          <Link to="/route" className="nav-link">
+            Navigate
+          </Link>
           <button type="button" onClick={() => openAddSystem()}>
             + Add system
+          </button>
+          <button type="button" onClick={() => setShowFlags(true)}>
+            Flags
           </button>
           {state.systems.length === 0 && (
             <button type="button" onClick={() => setShowImportRegion(true)}>
@@ -343,44 +297,23 @@ export function MapView({ mapId }: Props) {
             )}
           </div>
 
-          {panelHidden ? (
-            <button
-              type="button"
-              className="signature-panel-show-button"
-              onClick={() => setPanelHidden(false)}
-              aria-label="Show signature panel"
-              title="Show signature panel"
-            >
-              <i className="fas fa-chevron-left" aria-hidden="true" />
-            </button>
-          ) : (
-            <div
-              className="signature-panel-wrapper"
-              style={{ width: panelWidth }}
-            >
-              <div
-                className="signature-panel-resize-handle"
-                onMouseDown={handlePanelResizeStart}
-              />
-              <button
-                type="button"
-                className="signature-panel-hide-button"
-                onClick={() => setPanelHidden(true)}
-                aria-label="Hide signature panel"
-                title="Hide signature panel"
-              >
-                <i className="fas fa-chevron-right" aria-hidden="true" />
-              </button>
-              <SignaturePanel
-                mapId={mapId}
-                state={state}
-                systemId={selectedSystemId}
-                onClose={() => setSelectedSystemId(null)}
-                onSelectSystem={setSelectedSystemId}
-                onSystemCreated={handleSystemCreated}
-              />
-            </div>
-          )}
+          <ResizableSidePanel
+            width={panelWidth}
+            hidden={panelHidden}
+            onShow={() => setPanelHidden(false)}
+            onHide={() => setPanelHidden(true)}
+            onResizeStart={handlePanelResizeStart}
+            label="signature panel"
+          >
+            <SignaturePanel
+              mapId={mapId}
+              state={state}
+              systemId={selectedSystemId}
+              onClose={() => setSelectedSystemId(null)}
+              onSelectSystem={setSelectedSystemId}
+              onSystemCreated={handleSystemCreated}
+            />
+          </ResizableSidePanel>
         </ReactFlowProvider>
       </div>
 
@@ -407,6 +340,16 @@ export function MapView({ mapId }: Props) {
           map={state.map}
           onClose={() => setShowShare(false)}
           onMapUpdated={refresh}
+        />
+      )}
+
+      {showFlags && (
+        <ConnectionFlagsPanel
+          mapId={mapId}
+          systems={state.systems}
+          connections={state.connections}
+          onClose={() => setShowFlags(false)}
+          onChanged={refresh}
         />
       )}
 

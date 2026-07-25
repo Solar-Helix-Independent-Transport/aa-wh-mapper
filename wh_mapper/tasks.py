@@ -34,6 +34,7 @@ from wh_mapper.api.helpers import (
     connection_to_schema,
     connection_wormhole_type,
     get_or_create_connection,
+    recompute_route,
     remaining_life_hours,
     signature_reference_time,
     single_system_owner,
@@ -41,17 +42,24 @@ from wh_mapper.api.helpers import (
     system_to_schema,
     tracked_character_to_schema,
 )
-from wh_mapper.broadcast import broadcast_map_event, send_map_event_to_user
+from wh_mapper.broadcast import (
+    broadcast_map_event,
+    broadcast_route_event,
+    send_map_event_to_user,
+)
 from wh_mapper.constants import (
     LOCATION_SCOPES,
     MAP_PRESENCE_STALE_AFTER_SECONDS,
     NEW_SYSTEM_OFFSET_X,
     POLL_RESCHEDULE_SECONDS,
+    ROUTE_STALE_AFTER_SECONDS,
 )
 from wh_mapper.consumers import _group_name
 from wh_mapper.models import (
+    Map,
     MapPresence,
     MapSystem,
+    Route,
     Signature,
     SystemSovereignty,
     TrackedCharacter,
@@ -265,6 +273,60 @@ def prune_stale_map_presence():
 
     logger.info("Pruned %s stale MapPresence row(s)", len(stale))
     return len(stale)
+
+
+@shared_task
+def recompute_routes_for_map(map_id: int) -> int:
+    """Recompute every active shared Route whose owner can currently see
+    `map_id`, and broadcast the ones whose result changed.
+
+    Called from every mutation site that changes a WormholeConnection on a
+    map (see wh_mapper.api.connections), following this codebase's existing
+    convention of explicit calls at mutation sites rather than Django
+    signals (the same convention broadcast_map_event itself follows).
+    Recomputes every one of that owner's active routes that *could* be
+    affected, rather than precisely tracking which routes actually
+    traversed this map - simpler, always correct, and per the wayfinder
+    map's ticket 01 findings, computation is cheap enough that the
+    occasional unnecessary recompute doesn't matter.
+
+    Returns the number of routes that were actually broadcast (changed).
+    """
+
+    if not Map.objects.filter(pk=map_id).exists():
+        return 0
+
+    changed_count = 0
+    for route in Route.objects.filter(visibility=Route.Visibility.SHARED).select_related("owner"):
+        if not Map.objects.visible_to(route.owner).filter(pk=map_id).exists():
+            continue
+
+        changed = recompute_route(route)
+        if changed:
+            broadcast_route_event(route.id, "route.updated", {"found": route.found})
+            changed_count += 1
+
+    return changed_count
+
+
+@shared_task
+def prune_stale_routes() -> int:
+    """Delete any shared Route whose last_viewed_at is older than
+    ROUTE_STALE_AFTER_SECONDS - mirrors prune_stale_map_presence's use of
+    MapPresence.last_seen_at. A Route is meant to be a casual, disposable
+    artifact (see wh_mapper.models.Route), not permanent storage.
+
+    Schedule this periodically (e.g. hourly) via CELERYBEAT_SCHEDULE in
+    your AA install's local settings.
+
+    Returns the number of routes pruned.
+    """
+
+    cutoff = timezone.now() - timedelta(seconds=ROUTE_STALE_AFTER_SECONDS)
+    stale_count, _ = Route.objects.filter(last_viewed_at__lt=cutoff).delete()
+    if stale_count:
+        logger.info("Pruned %s stale Route row(s)", stale_count)
+    return stale_count
 
 
 @shared_task(

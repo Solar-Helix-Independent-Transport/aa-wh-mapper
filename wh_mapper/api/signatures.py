@@ -17,6 +17,20 @@ from wh_mapper.broadcast import broadcast_map_event
 from wh_mapper.models import MapSystem, Signature, WormholeConnection, WormholeType
 
 
+def _recompute_routes_for_map(map_id: int) -> None:
+    """Deferred import - see wh_mapper.api.connections._recompute_routes_for_map
+    for why this can't be a module-scope import. A signature identified/
+    updated/removed can change what a route leg shows for the connection
+    it's linked to (wormhole type -> time_status, or the signature detail
+    itself - see WormholeConnectionOut.top_signature/bottom_signature),
+    even though it never changes routing weight."""
+
+    # AA WH Mapper App
+    from wh_mapper.tasks import recompute_routes_for_map
+
+    recompute_routes_for_map.delay(map_id)
+
+
 def _resolve_wormhole_type(code):
     if not code:
         return None
@@ -235,6 +249,7 @@ class SignatureApiEndpoints:
                     "removed_system_ids": removed_system_ids,
                 },
             )
+            _recompute_routes_for_map(map_obj.id)
 
             return {
                 "signatures": out,
@@ -278,6 +293,7 @@ class SignatureApiEndpoints:
 
             out = signature_to_schema(signature)
             broadcast_map_event(map_obj.id, "signature.updated", out)
+            _recompute_routes_for_map(map_obj.id)
 
             return out
 
@@ -300,6 +316,7 @@ class SignatureApiEndpoints:
             signature.delete()
 
             broadcast_map_event(map_obj.id, "signature.removed", {"id": signature_id})
+            _recompute_routes_for_map(map_obj.id)
 
             return 204, None
 

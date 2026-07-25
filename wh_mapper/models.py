@@ -9,6 +9,7 @@ from eve_sde.models import SolarSystem
 # Django
 from django.conf import settings
 from django.contrib.auth.models import Group
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -471,3 +472,104 @@ class SystemSovereignty(models.Model):
 
     def __str__(self) -> str:
         return f"sovereignty for system {self.solar_system_id}"
+
+
+class Route(models.Model):
+    """A shared, live-updating route between two solar systems - an opt-in
+    promotion of an on-demand route computation (see
+    wh_mapper.api.route.compute_route) into a persisted, Celery-refreshed,
+    websocket-broadcast resource so multiple people can watch the same
+    route update as connections change, without each computing their own.
+
+    Deliberately scoped to the owner's own visible-map graph rather than
+    per-viewer - a viewer may see a leg implying a connection they
+    couldn't otherwise see on their own maps. An accepted tradeoff for
+    keeping this a simple, disposable, link-shared artifact rather than a
+    fully permissioned collaborative one - see the wayfinder map's ticket 08.
+    """
+
+    class Visibility(models.TextChoices):
+        """Choices for Route.visibility"""
+
+        PRIVATE = "private", "Private"
+        SHARED = "shared", "Shared"
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="wh_routes"
+    )
+    start_system = models.ForeignKey(
+        SolarSystem, on_delete=models.CASCADE, related_name="+"
+    )
+    end_system = models.ForeignKey(
+        SolarSystem, on_delete=models.CASCADE, related_name="+"
+    )
+    visibility = models.CharField(
+        max_length=10, choices=Visibility.choices, default=Visibility.PRIVATE
+    )
+    # Wholesale-replaced computed cache (RouteDetail shape), never edited
+    # piecemeal - a plain JSON field rather than relational rows like
+    # MapSystem/WormholeConnection, which are genuinely user-edited.
+    found = models.BooleanField(default=False)
+    # DjangoJSONEncoder, not the default - legs carry a nested `connection`
+    # dict (see route_result_to_schema) whose fields include real datetime
+    # objects (created_at etc.), which the plain json encoder can't handle.
+    systems = models.JSONField(default=list, blank=True, encoder=DjangoJSONEncoder)
+    legs = models.JSONField(default=list, blank=True, encoder=DjangoJSONEncoder)
+    # A strictly-shorter, risk-ignoring alternative to the route above (RouteDetail
+    # shape, or None) - see wh_mapper.pathfinding.RouteComputation.alternate.
+    alternate = models.JSONField(default=None, null=True, blank=True, encoder=DjangoJSONEncoder)
+    last_computed_at = models.DateTimeField(null=True, blank=True, default=None)
+    # Bumped whenever someone loads this route's page or a websocket
+    # connects to it - see wh_mapper.tasks.prune_stale_routes, which mirrors
+    # prune_stale_map_presence's use of MapPresence.last_seen_at.
+    last_viewed_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+
+    def __str__(self) -> str:
+        return f"{self.start_system} -> {self.end_system}"
+
+
+class ConnectionFlag(models.Model):
+    """A suggested status change on a WormholeConnection from a user who
+    can't edit the underlying map directly (e.g. viewing a shared Route
+    built from someone else's visible maps - see Route's docstring).
+
+    Carries the same vocabulary as WormholeConnection's own editable
+    fields so an editor's "accept" can feed straight into the existing
+    wh_mapper.api.helpers.apply_life_status / connection delete logic,
+    rather than needing separate handling. Transient by design - accepting
+    or dismissing a flag deletes it; no history is kept (see the wayfinder
+    map's ticket 11).
+    """
+
+    connection = models.ForeignKey(
+        WormholeConnection, on_delete=models.CASCADE, related_name="flags"
+    )
+    flagged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    suggested_life_status = models.CharField(
+        max_length=10, choices=Signature.LifeStatus.choices, null=True, blank=True
+    )
+    suggested_mass_status = models.CharField(
+        max_length=10, choices=WormholeConnection.MassStatus.choices, null=True, blank=True
+    )
+    suggests_collapsed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+        # One flag per user per connection - re-flagging replaces your own
+        # prior suggestion rather than accumulating (see ticket 11).
+        unique_together = ("connection", "flagged_by")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"flag on {self.connection_id} by {self.flagged_by}"

@@ -54,6 +54,12 @@ MAP_PRESENCE_PING_INTERVAL_SECONDS = 30
 # normal network jitter without evicting a still-live connection.
 MAP_PRESENCE_STALE_AFTER_SECONDS = MAP_PRESENCE_PING_INTERVAL_SECONDS * 4
 
+# How long (seconds) a shared Route can go unviewed before
+# wh_mapper.tasks.prune_stale_routes deletes it - a shared route is a
+# casual, disposable artifact (see wh_mapper.models.Route), not something
+# meant to persist indefinitely. 48 hours.
+ROUTE_STALE_AFTER_SECONDS = 60 * 60 * 48
+
 # security_status at/above which a k-space system is considered High Sec
 # (below is Low Sec down to 0.0, Null Sec below that) - see
 # wh_mapper.api.helpers.space_type_label.

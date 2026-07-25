@@ -531,8 +531,18 @@ def connection_to_schema(connection) -> dict:
         "connection_type": str(connection.connection_type),
         "top_system_id": connection.top_system_id,
         "bottom_system_id": connection.bottom_system_id,
+        "top_system_solar_system_id": connection.top_system.solar_system_id,
+        "bottom_system_solar_system_id": connection.bottom_system.solar_system_id,
         "top_signature_id": connection.top_signature_id,
         "bottom_signature_id": connection.bottom_signature_id,
+        "top_signature": (
+            signature_to_schema(connection.top_signature) if connection.top_signature else None
+        ),
+        "bottom_signature": (
+            signature_to_schema(connection.bottom_signature)
+            if connection.bottom_signature
+            else None
+        ),
         "life_status": str(connection.life_status),
         "life_status_marked_at": connection.life_status_marked_at,
         "mass_status": str(connection.mass_status),
@@ -893,6 +903,195 @@ def revoke_stale_map_access(map_obj: Map) -> None:
     ]
     if stale_channels:
         revoke_map_access(stale_channels)
+
+
+def route_visible_to_user(user, route_id: int) -> bool:
+    """Link-based visibility (see wh_mapper.models.Route.Visibility) - the
+    owner can always view; anyone else needs visibility=shared. No per-user
+    ACL, deliberately - the single predicate shared by get_visible_route
+    (HTTP) and wh_mapper.consumers.RouteConsumer.user_can_view_route_sync
+    (websocket), mirroring map_visible_to_user's role for Map.
+    """
+
+    # AA WH Mapper App
+    from wh_mapper.models import Route
+
+    return Route.objects.filter(pk=route_id).filter(
+        Q(owner=user) | Q(visibility=Route.Visibility.SHARED)
+    ).exists()
+
+
+def get_visible_route(request, route_id: int):
+    """Fetch a Route the requesting user is allowed to see, or return an
+    (status, message) error tuple - same 404-not-403 shape as
+    get_visible_map, for the same reason (don't leak existence to a user
+    who simply isn't allowed to see this one)."""
+
+    # AA WH Mapper App
+    from wh_mapper.models import Route
+
+    route_obj = get_object_or_404(Route, pk=route_id)
+
+    if not route_visible_to_user(request.user, route_id):
+        return None, (404, "Route not found")
+
+    return route_obj, None
+
+
+def recompute_route(route) -> bool:
+    """Recompute a Route's cached path and save if the result changed.
+    Returns whether anything changed (so callers can decide whether to
+    broadcast). Uses the route's own owner's visible-map graph, same as an
+    on-demand lookup - see wh_mapper.models.Route's docstring on why this
+    is scoped to the owner rather than per-viewer."""
+
+    # AA WH Mapper App
+    from wh_mapper.pathfinding import compute_route
+
+    computation = compute_route(route.owner, route.start_system_id, route.end_system_id)
+    payload = route_result_to_schema(computation)
+    new_systems = payload["route"]["systems"] if payload["found"] else []
+    new_legs = payload["route"]["legs"] if payload["found"] else []
+    new_alternate = payload["alternate"]
+
+    changed = (
+        route.found != payload["found"]
+        or route.systems != new_systems
+        or route.legs != new_legs
+        or route.alternate != new_alternate
+    )
+
+    route.found = payload["found"]
+    route.systems = new_systems
+    route.legs = new_legs
+    route.alternate = new_alternate
+    route.last_computed_at = timezone.now()
+    route.save(update_fields=["found", "systems", "legs", "alternate", "last_computed_at"])
+
+    return changed
+
+
+def shared_route_to_schema(route, request) -> dict:
+    """Serialize a persisted Route to SharedRouteOut shape. systems/legs
+    are already the cached, wholesale-replaced JSON (see recompute_route) -
+    no live computation here."""
+
+    return {
+        "id": route.id,
+        "owner_id": route.owner_id,
+        "start_system": solar_system_to_schema(route.start_system),
+        "end_system": solar_system_to_schema(route.end_system),
+        "visibility": str(route.visibility),
+        "found": route.found,
+        "systems": route.systems,
+        "legs": route.legs,
+        "alternate": route.alternate,
+        "last_computed_at": route.last_computed_at,
+        "is_owner": route.owner_id == request.user.id,
+    }
+
+
+def _route_result_to_detail_schema(result) -> dict | None:
+    """Serialize a wh_mapper.pathfinding.RouteResult to RouteDetail shape,
+    or None if not found.
+
+    Batches owner resolution for every system in the route in one pass
+    (bulk_system_owners), same reasoning as get_map_state - a per-system
+    version would N+1 across the whole route. Each wormhole/ansiblex leg's
+    `connection` is the same WormholeConnectionOut shape the Map view
+    itself uses (batched the same way, one query for every leg's
+    connection rather than one per leg) - reusing connection_to_schema
+    directly means a route shows exactly the same wormhole detail (ship
+    size, time_status, signature ids) the map does, with no separate
+    route-specific serialization to keep in sync.
+    """
+
+    if not result.found:
+        return None
+
+    systems_by_id = {
+        s.id: s
+        for s in SolarSystem.objects.filter(
+            id__in=result.system_ids
+        ).select_related("constellation__region")
+    }
+    ordered_systems = [systems_by_id[system_id] for system_id in result.system_ids]
+    owners = bulk_system_owners(ordered_systems)
+
+    connection_ids = [leg.connection_id for leg in result.legs if leg.connection_id is not None]
+    connections_by_id = {
+        c.id: c
+        for c in WormholeConnection.objects.filter(id__in=connection_ids).select_related(
+            "top_signature__wormhole_type",
+            "bottom_signature__wormhole_type",
+            "top_system",
+            "bottom_system",
+        )
+    }
+
+    return {
+        "systems": [
+            solar_system_to_schema(s, owner=owners.get(s.id)) for s in ordered_systems
+        ],
+        "legs": [
+            {
+                "connection_type": leg.connection_type,
+                "life_status": leg.life_status,
+                "mass_status": leg.mass_status,
+                "map_id": leg.map_id,
+                "connection_id": leg.connection_id,
+                "connection": (
+                    connection_to_schema(connections_by_id[leg.connection_id])
+                    if leg.connection_id is not None
+                    and leg.connection_id in connections_by_id
+                    else None
+                ),
+            }
+            for leg in result.legs
+        ],
+    }
+
+
+def route_result_to_schema(computation) -> dict:
+    """Serialize a wh_mapper.pathfinding.RouteComputation to RouteOut shape.
+    `alternate` is a strictly-shorter (fewer hops), risk-ignoring route the
+    risk-weighted `route` passed over - surfaced so the user can judge the
+    tradeoff themselves rather than the tool silently picking for them."""
+
+    primary_detail = _route_result_to_detail_schema(computation.primary)
+    if primary_detail is None:
+        return {
+            "found": False,
+            "message": "No route found between these systems",
+            "route": None,
+            "alternate": None,
+        }
+
+    alternate_detail = (
+        _route_result_to_detail_schema(computation.alternate) if computation.alternate else None
+    )
+
+    return {
+        "found": True,
+        "message": None,
+        "route": primary_detail,
+        "alternate": alternate_detail,
+    }
+
+
+def connection_flag_to_schema(flag) -> dict:
+    """Serialize a ConnectionFlag to ConnectionFlagOut shape"""
+
+    return {
+        "id": flag.id,
+        "connection_id": flag.connection_id,
+        "flagged_by_id": flag.flagged_by_id,
+        "flagged_by_name": str(flag.flagged_by),
+        "suggested_life_status": flag.suggested_life_status,
+        "suggested_mass_status": flag.suggested_mass_status,
+        "suggests_collapsed": flag.suggests_collapsed,
+        "created_at": flag.created_at,
+    }
 
 
 def trackable_character_to_schema(character, tracked=None) -> dict:
