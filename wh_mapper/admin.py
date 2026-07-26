@@ -8,6 +8,7 @@ from django.template.response import TemplateResponse
 # AA WH Mapper App
 from wh_mapper.models import (
     Map,
+    MapContribution,
     MapPresence,
     MapShare,
     MapShareGroup,
@@ -83,6 +84,15 @@ class WormholeConnectionAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("map", "life_status", "mass_status")
+
+
+@admin.register(MapContribution)
+class MapContributionAdmin(admin.ModelAdmin):
+    """Admin for MapContribution"""
+
+    list_display = ("map", "connection", "verb", "character", "user", "created_at")
+    list_filter = ("verb", "map")
+    search_fields = ("character__character_name", "user__username")
 
 
 @admin.register(TrackedCharacter)

@@ -16,6 +16,7 @@ from eve_sde.models import (
 )
 
 # Django
+from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError, connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -26,6 +27,7 @@ from allianceauth.eveonline.models import EveAllianceInfo, EveFactionInfo
 
 # AA WH Mapper App
 from wh_mapper.api.helpers import (
+    _contributors_for_connection_ids,
     apply_life_status,
     bulk_system_owners,
     connection_effective_life_status,
@@ -33,13 +35,17 @@ from wh_mapper.api.helpers import (
     get_or_create_connection,
     life_status_for_remaining_hours,
     list_flat_regions,
+    map_last_updated,
+    record_contribution,
     remaining_life_hours,
     signature_reference_time,
     space_type_label,
     stargate_connects,
 )
+from wh_mapper.constants import UNKNOWN_STABLE_MAX_HOURS
 from wh_mapper.models import (
     Map,
+    MapContribution,
     MapSystem,
     Signature,
     SystemSovereignty,
@@ -64,7 +70,7 @@ class TestApplyLifeStatus(TestCase):
         self.assertEqual(signature.life_status, Signature.LifeStatus.LESS_THAN_4H)
         self.assertIsNotNone(signature.life_status_marked_at)
 
-    def test_marking_stable_clears_life_status_marked_at(self):
+    def test_marking_stable_stamps_life_status_marked_at(self):
         signature = Signature(
             life_status=Signature.LifeStatus.LESS_THAN_4H, life_status_marked_at=timezone.now()
         )
@@ -72,7 +78,7 @@ class TestApplyLifeStatus(TestCase):
         apply_life_status(signature, Signature.LifeStatus.STABLE)
 
         self.assertEqual(signature.life_status, Signature.LifeStatus.STABLE)
-        self.assertIsNone(signature.life_status_marked_at)
+        self.assertIsNotNone(signature.life_status_marked_at)
 
     def test_works_on_wormhole_connection_too(self):
         connection = WormholeConnection(life_status=Signature.LifeStatus.STABLE)
@@ -153,6 +159,14 @@ class TestRemainingLifeHours(TestCase):
 
         self.assertIsNone(remaining)
 
+    def test_unidentified_stable_counts_down_from_the_assumed_max(self):
+        now = timezone.now()
+        marked_at = now - timedelta(hours=10)
+
+        remaining = remaining_life_hours(Signature.LifeStatus.STABLE, marked_at, None, now, now)
+
+        self.assertAlmostEqual(remaining, UNKNOWN_STABLE_MAX_HOURS - 10, places=2)
+
 
 class TestConnectionEffectiveLifeStatus(TestCase):
     """TestConnectionEffectiveLifeStatus"""
@@ -206,6 +220,22 @@ class TestConnectionEffectiveLifeStatus(TestCase):
 
         self.assertEqual(
             connection_effective_life_status(connection), Signature.LifeStatus.LESS_THAN_24H
+        )
+
+    def test_unidentified_stable_ages_into_the_ladder_over_time(self):
+        connection = WormholeConnection.objects.create(
+            map=self.map,
+            top_system=self.top_system,
+            bottom_system=self.bottom_system,
+            life_status=Signature.LifeStatus.STABLE,
+            life_status_marked_at=timezone.now() - timedelta(hours=UNKNOWN_STABLE_MAX_HOURS - 8),
+        )
+
+        # 8 of the assumed 48h remaining -> squarely in the lt_12h bucket,
+        # not still "stable" - see apply_life_status's stamping-not-clearing
+        # of life_status_marked_at for stable.
+        self.assertEqual(
+            connection_effective_life_status(connection), Signature.LifeStatus.LESS_THAN_12H
         )
 
 
@@ -604,3 +634,177 @@ class TestListFlatRegions(TestCase):
 
         region_ids = [r.id for r in list_flat_regions()]
         self.assertIn(pochven_region_id, region_ids)
+
+
+class TestMapLastUpdated(TestCase):
+    """TestMapLastUpdated"""
+
+    def setUp(self):
+        self.user = make_user_with_character("maplastupdated", 900700)
+        self.map_obj = Map.objects.create(name="Test Map", owner=self.user)
+        self.system_a = make_solar_system("Alpha")
+        self.system_b = make_solar_system("Bravo")
+
+    def test_falls_back_to_created_at_for_an_empty_map(self):
+        self.assertEqual(map_last_updated(self.map_obj), self.map_obj.created_at)
+
+    def test_reflects_a_recently_added_system(self):
+        MapSystem.objects.create(map=self.map_obj, solar_system=self.system_a)
+
+        result = map_last_updated(self.map_obj)
+
+        self.assertGreater(result, self.map_obj.created_at)
+
+    def test_reflects_the_most_recent_connection_edit_over_an_older_system_add(self):
+        top = MapSystem.objects.create(map=self.map_obj, solar_system=self.system_a)
+        bottom = MapSystem.objects.create(map=self.map_obj, solar_system=self.system_b)
+        connection = WormholeConnection.objects.create(
+            map=self.map_obj, top_system=top, bottom_system=bottom
+        )
+
+        # Backdate the systems (bypassing auto_now_add via .update(), which
+        # skips save()) so the connection's own auto_now updated_at is
+        # unambiguously the most recent of the three.
+        old = timezone.now() - timedelta(days=2)
+        MapSystem.objects.filter(pk__in=[top.pk, bottom.pk]).update(added_at=old)
+
+        result = map_last_updated(self.map_obj)
+
+        connection.refresh_from_db()
+        self.assertEqual(result, connection.updated_at)
+        self.assertGreater(result, old)
+
+    def test_reflects_a_signature_edit_on_the_map(self):
+        top = MapSystem.objects.create(map=self.map_obj, solar_system=self.system_a)
+        old = timezone.now() - timedelta(days=2)
+        MapSystem.objects.filter(pk=top.pk).update(added_at=old)
+
+        signature = Signature.objects.create(map_system=top, signature_id="ABC-123")
+
+        result = map_last_updated(self.map_obj)
+
+        signature.refresh_from_db()
+        self.assertEqual(result, signature.updated_at)
+
+
+class TestRecordContribution(TestCase):
+    """TestRecordContribution"""
+
+    def setUp(self):
+        self.alice = make_user_with_character("contrib_alice", 900801)
+        self.map_obj = Map.objects.create(name="Test Map", owner=self.alice)
+        self.system_a = make_solar_system("Alpha")
+        self.system_b = make_solar_system("Bravo")
+        self.top = MapSystem.objects.create(map=self.map_obj, solar_system=self.system_a)
+        self.bottom = MapSystem.objects.create(map=self.map_obj, solar_system=self.system_b)
+
+    def test_records_a_wormhole_contribution_with_the_actor_s_main_character(self):
+        connection = WormholeConnection.objects.create(
+            map=self.map_obj,
+            connection_type=WormholeConnection.ConnectionType.WORMHOLE,
+            top_system=self.top,
+            bottom_system=self.bottom,
+        )
+
+        record_contribution(connection, self.alice, MapContribution.Verb.ADDED)
+
+        contribution = MapContribution.objects.get()
+        self.assertEqual(contribution.connection_id, connection.id)
+        self.assertEqual(contribution.map_id, self.map_obj.id)
+        self.assertEqual(contribution.verb, MapContribution.Verb.ADDED)
+        self.assertEqual(contribution.character_id, self.alice.profile.main_character_id)
+        self.assertEqual(contribution.user_id, self.alice.id)
+
+    def test_stargate_connections_are_never_credited(self):
+        connection = WormholeConnection.objects.create(
+            map=self.map_obj,
+            connection_type=WormholeConnection.ConnectionType.STARGATE,
+            top_system=self.top,
+            bottom_system=self.bottom,
+        )
+
+        record_contribution(connection, self.alice, MapContribution.Verb.ADDED)
+
+        self.assertFalse(MapContribution.objects.exists())
+
+    def test_ansiblex_connections_are_never_credited(self):
+        connection = WormholeConnection.objects.create(
+            map=self.map_obj,
+            connection_type=WormholeConnection.ConnectionType.ANSIBLEX,
+            top_system=self.top,
+            bottom_system=self.bottom,
+        )
+
+        record_contribution(connection, self.alice, MapContribution.Verb.ADDED)
+
+        self.assertFalse(MapContribution.objects.exists())
+
+    def test_unauthenticated_actor_is_never_credited(self):
+        connection = WormholeConnection.objects.create(
+            map=self.map_obj,
+            connection_type=WormholeConnection.ConnectionType.WORMHOLE,
+            top_system=self.top,
+            bottom_system=self.bottom,
+        )
+
+        record_contribution(connection, AnonymousUser(), MapContribution.Verb.ADDED)
+
+        self.assertFalse(MapContribution.objects.exists())
+
+
+class TestContributorsForConnectionIds(TestCase):
+    """TestContributorsForConnectionIds"""
+
+    def setUp(self):
+        self.alice = make_user_with_character("contrib_route_alice", 900810)
+        self.bob = make_user_with_character("contrib_route_bob", 900811)
+        self.map_obj = Map.objects.create(name="Test Map", owner=self.alice)
+        top = MapSystem.objects.create(map=self.map_obj, solar_system=make_solar_system("A2"))
+        bottom = MapSystem.objects.create(map=self.map_obj, solar_system=make_solar_system("B2"))
+        self.connection = WormholeConnection.objects.create(
+            map=self.map_obj,
+            connection_type=WormholeConnection.ConnectionType.WORMHOLE,
+            top_system=top,
+            bottom_system=bottom,
+        )
+
+    def test_empty_connection_ids_returns_empty_list(self):
+        self.assertEqual(_contributors_for_connection_ids([]), [])
+        self.assertEqual(_contributors_for_connection_ids([None]), [])
+
+    def test_counts_and_sorts_by_contribution_count_descending(self):
+        record_contribution(self.connection, self.alice, MapContribution.Verb.ADDED)
+        record_contribution(self.connection, self.alice, MapContribution.Verb.UPDATED)
+        record_contribution(self.connection, self.bob, MapContribution.Verb.SIGNATURE_LINKED)
+
+        contributors = _contributors_for_connection_ids([self.connection.id])
+
+        self.assertEqual(
+            contributors,
+            [
+                {
+                    "character_id": self.alice.profile.main_character_id,
+                    "name": self.alice.profile.main_character.character_name,
+                    "contribution_count": 2,
+                },
+                {
+                    "character_id": self.bob.profile.main_character_id,
+                    "name": self.bob.profile.main_character.character_name,
+                    "contribution_count": 1,
+                },
+            ],
+        )
+
+    def test_falls_back_to_username_when_actor_has_no_main_character(self):
+        no_main = make_user_with_character("contrib_route_nomain", 900812)
+        no_main.profile.main_character = None
+        no_main.profile.save()
+
+        record_contribution(self.connection, no_main, MapContribution.Verb.ADDED)
+
+        contributors = _contributors_for_connection_ids([self.connection.id])
+
+        self.assertEqual(
+            contributors,
+            [{"character_id": None, "name": "contrib_route_nomain", "contribution_count": 1}],
+        )

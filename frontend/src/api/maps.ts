@@ -3,6 +3,7 @@ import { WH_MAPPER_URL_PREFIX } from "../constants";
 import type {
   AllianceSearchResult,
   CharacterSearchResult,
+  ConnectionDetailOut,
   ConnectionType,
   CorporationSearchResult,
   GroupSearchResult,
@@ -17,6 +18,7 @@ import type {
   SignatureBulkResult,
   SignatureOut,
   SolarSystemOut,
+  SystemDetailOut,
   TrackableCharacterOut,
   TrackedCharacterOut,
   WormholeConnectionOut,
@@ -64,6 +66,9 @@ export const updateSystem = (
 
 export const removeSystem = (mapId: number, systemId: number) =>
   api.delete<void>(`/maps/${mapId}/systems/${systemId}/`);
+
+export const getSystemDetails = (mapId: number, systemId: number) =>
+  api.get<SystemDetailOut>(`/maps/${mapId}/systems/${systemId}/details/`);
 
 export const addSignature = (
   mapId: number,
@@ -154,6 +159,11 @@ export const updateConnection = (
 
 export const removeConnection = (mapId: number, connectionId: number) =>
   api.delete<void>(`/maps/${mapId}/connections/${connectionId}/`);
+
+export const getConnectionDetails = (mapId: number, connectionId: number) =>
+  api.get<ConnectionDetailOut>(
+    `/maps/${mapId}/connections/${connectionId}/details/`,
+  );
 
 export const linkConnectionSignature = (
   mapId: number,

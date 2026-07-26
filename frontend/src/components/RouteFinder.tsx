@@ -14,6 +14,7 @@ import { useResizablePanel } from "../hooks/useResizablePanel";
 import { useSearch } from "../hooks/useSearch";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { RouteAlternateBanner } from "./RouteAlternateBanner";
+import { RouteContributors } from "./RouteContributors";
 import { RouteDiagram } from "./RouteDiagram";
 import { RouteItinerary } from "./RouteItinerary";
 import { SearchResultRow } from "./SearchResultRow";
@@ -214,6 +215,7 @@ export function RouteFinder() {
                   legs={displayedRoute.legs}
                   selectedSystemId={selectedSystemId}
                 />
+                <RouteContributors contributors={displayedRoute.contributors} />
                 <button
                   type="button"
                   className="route-share-button"

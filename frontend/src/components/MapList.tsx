@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createMap, deleteMap, listMaps, updateMap } from "../api/maps";
 import type { MapOut } from "../api/types";
+import { relativeTimeLabel } from "../lib/relativeTime";
 import { LoadingState } from "./LoadingState";
 
 interface Props {
@@ -169,6 +170,12 @@ export function MapList({ onOpen }: Props) {
                       <i className="fas fa-users" /> {m.active_users}
                     </span>
                   )}
+                  <span
+                    className="map-card-updated"
+                    title={new Date(m.last_updated).toLocaleString()}
+                  >
+                    Updated {relativeTimeLabel(m.last_updated)}
+                  </span>
                 </div>
                 <div
                   className="map-card-actions"
@@ -217,6 +224,12 @@ export function MapList({ onOpen }: Props) {
                       <i className="fas fa-users" /> {m.active_users}
                     </span>
                   )}
+                  <span
+                    className="map-card-updated"
+                    title={new Date(m.last_updated).toLocaleString()}
+                  >
+                    Updated {relativeTimeLabel(m.last_updated)}
+                  </span>
                 </div>
                 <span className="map-card-owner">by {m.owner_name}</span>
               </li>

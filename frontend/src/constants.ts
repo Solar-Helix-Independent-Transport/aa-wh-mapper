@@ -155,6 +155,13 @@ export const TRACKED_CHARACTERS_REFRESH_INTERVAL_MS = 30_000;
 // one for every transition.
 export const LIFE_STATUS_HOUR_BOUNDS = [48, 24, 12, 4, 1];
 
+// Assumed starting lifespan (hours) for a manually-marked "stable" bucket
+// while the wormhole type is still unidentified - without this, "stable"
+// had no countdown anchor and could sit unaged forever. Matches
+// wh_mapper/constants.py's UNKNOWN_STABLE_MAX_HOURS; see
+// wormholeClass.ts's LIFE_STATUS_BUCKET_HOURS.
+export const UNKNOWN_STABLE_MAX_HOURS = 48;
+
 // How often edges/signature rows re-check remaining life against the
 // current time to advance to the next bucket - hour-scale precision doesn't
 // need to be finer than this.

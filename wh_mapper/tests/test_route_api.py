@@ -4,7 +4,13 @@
 from django.test import TestCase
 
 # AA WH Mapper App
-from wh_mapper.models import Map, MapSystem, Signature, WormholeConnection
+from wh_mapper.models import (
+    Map,
+    MapContribution,
+    MapSystem,
+    Signature,
+    WormholeConnection,
+)
 from wh_mapper.tests.factories import (
     make_solar_system,
     make_stargate,
@@ -124,6 +130,50 @@ class TestRouteApi(TestCase):
         self.assertIsNotNone(leg["connection"]["top_signature"])
         self.assertEqual(leg["connection"]["top_signature"]["signature_id"], "ABC-123")
         self.assertIsNone(leg["connection"]["bottom_signature"])
+
+    def test_route_credits_wormhole_contributors(self):
+        wh_map = Map.objects.create(name="Test Map", owner=self.alice)
+        top = MapSystem.objects.create(map=wh_map, solar_system=self.jita)
+        bottom = MapSystem.objects.create(map=wh_map, solar_system=self.amarr)
+        connection = WormholeConnection.objects.create(
+            map=wh_map,
+            connection_type=WormholeConnection.ConnectionType.WORMHOLE,
+            top_system=top,
+            bottom_system=bottom,
+        )
+        MapContribution.objects.create(
+            map=wh_map,
+            connection=connection,
+            verb=MapContribution.Verb.ADDED,
+            character=self.alice.profile.main_character,
+            user=self.alice,
+        )
+
+        response = self.client.get(
+            f"/wh-mapper/api/route/?start_id={self.jita.id}&end_id={self.amarr.id}"
+        )
+
+        contributors = response.json()["route"]["contributors"]
+        self.assertEqual(
+            contributors,
+            [
+                {
+                    "character_id": self.alice.profile.main_character_id,
+                    "name": self.alice.profile.main_character.character_name,
+                    "contribution_count": 1,
+                }
+            ],
+        )
+
+    def test_stargate_route_has_no_contributors(self):
+        make_stargate(self.jita, self.amarr)
+        make_stargate(self.amarr, self.jita)
+
+        response = self.client.get(
+            f"/wh-mapper/api/route/?start_id={self.jita.id}&end_id={self.amarr.id}"
+        )
+
+        self.assertEqual(response.json()["route"]["contributors"], [])
 
     def test_stargate_leg_has_no_connection_detail(self):
         make_stargate(self.jita, self.amarr)

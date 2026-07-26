@@ -88,3 +88,14 @@ CONNECTION_TIME_STATUS_ORANGE_THRESHOLD = 0.85
 # see wh_mapper.tasks.age_wormhole_connections. Matches frontend/src/
 # constants.ts's LIFE_STATUS_HOUR_BOUNDS.
 LIFE_STATUS_HOUR_BOUNDS = [48, 24, 12, 4, 1]
+
+# Assumed starting lifespan (hours) for a manually-marked "stable" bucket
+# while the wormhole type is still unidentified - see
+# wh_mapper.api.helpers.apply_life_status/LIFE_STATUS_BUCKET_HOURS. Without
+# this, "stable" had no countdown anchor at all and could sit unaged
+# forever, even past when a real wormhole would have long since collapsed.
+# 48h matches the longest max_stable_time actually seen across the SDE's
+# WormholeType rows (e.g. B041/U319/B520/C391) - the most generous (latest
+# possible collapse) real assumption, so this never prunes a hole early.
+# Matches frontend/src/constants.ts's UNKNOWN_STABLE_MAX_HOURS.
+UNKNOWN_STABLE_MAX_HOURS = 48

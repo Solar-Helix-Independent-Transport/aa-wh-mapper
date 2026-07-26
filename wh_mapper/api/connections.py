@@ -11,10 +11,13 @@ from wh_mapper.api.helpers import (
     connection_to_schema,
     create_connection,
     get_or_create_connection,
+    map_contribution_to_schema,
+    record_contribution,
     require_visible_map,
+    user_display_name,
 )
 from wh_mapper.broadcast import broadcast_map_event
-from wh_mapper.models import MapSystem, Signature, WormholeConnection
+from wh_mapper.models import MapContribution, MapSystem, Signature, WormholeConnection
 
 
 def _recompute_routes_for_map(map_id: int) -> None:
@@ -107,6 +110,7 @@ class WormholeConnectionApiEndpoints:
                     ship_size_limit=payload.ship_size_limit,
                 )
                 connection_created = True
+                record_contribution(connection, request.user, MapContribution.Verb.ADDED)
 
             out = connection_to_schema(connection)
             if connection_created:
@@ -135,11 +139,17 @@ class WormholeConnectionApiEndpoints:
             )
 
             update_data = payload.dict(exclude_unset=True)
+            status_fields_changed = bool(
+                update_data.keys() & {"life_status", "mass_status", "ship_size_limit"}
+            )
             if "life_status" in update_data:
                 apply_life_status(connection, update_data.pop("life_status"))
             for field, value in update_data.items():
                 setattr(connection, field, value)
             connection.save()
+
+            if status_fields_changed:
+                record_contribution(connection, request.user, MapContribution.Verb.UPDATED)
 
             out = connection_to_schema(connection)
             broadcast_map_event(map_obj.id, "connection.updated", out)
@@ -177,12 +187,47 @@ class WormholeConnectionApiEndpoints:
                 return 400, "Signature does not belong to either end of this connection"
 
             connection.save()
+            record_contribution(connection, request.user, MapContribution.Verb.SIGNATURE_LINKED)
 
             out = connection_to_schema(connection)
             broadcast_map_event(map_obj.id, "connection.updated", out)
             _recompute_routes_for_map(map_obj.id)
 
             return out
+
+        @api.get(
+            "/maps/{map_id}/connections/{connection_id}/details/",
+            response={200: schema.ConnectionDetailOut, 403: str, 404: str},
+            tags=self.tags,
+        )
+        def get_connection_details(request, map_id: int, connection_id: int):
+            """Everything beyond WormholeConnectionOut's own fields for the
+            right-click "Details" view - creator display name and the full
+            bounty-attribution history (see wh_mapper.models.
+            MapContribution). Not part of the connection's regular schema/
+            broadcasts since both are too expensive to compute for every
+            connection in a bulk fetch - only worth it for the one
+            connection someone actually opened details for."""
+
+            map_obj, error = require_visible_map(request, map_id)
+            if error:
+                return error
+
+            connection = get_object_or_404(
+                WormholeConnection.objects.select_related(
+                    "created_by__profile__main_character"
+                ),
+                pk=connection_id,
+                map=map_obj,
+            )
+            contributions = MapContribution.objects.filter(
+                connection=connection
+            ).select_related("character", "user")
+
+            return {
+                "created_by_name": user_display_name(connection.created_by),
+                "contributions": [map_contribution_to_schema(c) for c in contributions],
+            }
 
         @api.delete(
             "/maps/{map_id}/connections/{connection_id}/",

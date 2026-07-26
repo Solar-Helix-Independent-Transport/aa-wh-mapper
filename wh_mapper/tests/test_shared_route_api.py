@@ -11,7 +11,14 @@ from django.test import TestCase
 from django.utils import timezone
 
 # AA WH Mapper App
-from wh_mapper.models import Map, MapSystem, Route, Signature, WormholeConnection
+from wh_mapper.models import (
+    Map,
+    MapContribution,
+    MapSystem,
+    Route,
+    Signature,
+    WormholeConnection,
+)
 from wh_mapper.tasks import prune_stale_routes, recompute_routes_for_map
 from wh_mapper.tests.factories import (
     make_solar_system,
@@ -45,6 +52,46 @@ class TestSharedRouteApi(TestCase):
         self.assertEqual(body["visibility"], "shared")
         self.assertTrue(body["is_owner"])
         self.assertEqual(len(body["systems"]), 2)
+
+    def test_share_route_surfaces_wormhole_contributors(self):
+        # A fresh system with no stargate to Jita (unlike self.amarr, which
+        # setUpTestData already links by stargate - pathfinding would prefer
+        # that cheaper edge over the wormhole below and this test wouldn't
+        # actually exercise contributor credit).
+        thera = make_solar_system("Thera")
+        wh_map = Map.objects.create(name="Contribution Map", owner=self.alice)
+        top = MapSystem.objects.create(map=wh_map, solar_system=self.jita)
+        bottom = MapSystem.objects.create(map=wh_map, solar_system=thera)
+        connection = WormholeConnection.objects.create(
+            map=wh_map,
+            connection_type=WormholeConnection.ConnectionType.WORMHOLE,
+            top_system=top,
+            bottom_system=bottom,
+        )
+        MapContribution.objects.create(
+            map=wh_map,
+            connection=connection,
+            verb=MapContribution.Verb.ADDED,
+            character=self.alice.profile.main_character,
+            user=self.alice,
+        )
+
+        response = self.client.post(
+            "/wh-mapper/api/route/shared/",
+            data=json.dumps({"start_id": self.jita.id, "end_id": thera.id}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(
+            response.json()["contributors"],
+            [
+                {
+                    "character_id": self.alice.profile.main_character_id,
+                    "name": self.alice.profile.main_character.character_name,
+                    "contribution_count": 1,
+                }
+            ],
+        )
 
     def test_private_route_hidden_from_other_users(self):
         route = Route.objects.create(

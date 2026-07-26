@@ -56,6 +56,10 @@ class MapOut(Schema):
     owner_name: str
     visibility: Literal["private", "shared"]
     created_at: datetime
+    # Latest of created_at, any system added, or any connection/signature
+    # edit - see wh_mapper.api.helpers.map_last_updated. Falls back to
+    # created_at itself for a still-empty map.
+    last_updated: datetime
     is_owner: bool
     can_edit_sharing: bool
     active_users: int
@@ -87,6 +91,20 @@ class MapSystemOut(Schema):
     pinned: bool
     added_by_id: int | None = None
     added_at: datetime
+
+
+class SystemDetailOut(Schema):
+    """Everything beyond MapSystemOut's own fields for a system's
+    right-click "Details" view - just the placer's resolved display name
+    (added_by_id alone, like WormholeConnectionOut's created_by_id, carries
+    no name). Not part of MapSystemOut itself since it's too expensive to
+    compute for every system in a bulk fetch (get_map_state) - the rest of
+    a system's detail (security/region/sovereignty, who's currently there,
+    which connections touch it) is already fully present client-side in
+    the map state the frontend already has, so this endpoint only needs to
+    add the one missing piece."""
+
+    added_by_name: str | None = None
 
 
 class MapSystemCreate(Schema):
@@ -220,6 +238,32 @@ class WormholeConnectionOut(Schema):
     created_by_id: int | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class MapContributionOut(Schema):
+    """One MapContribution row - a single bounty-attribution-worthy action
+    recorded against a wormhole connection (see wh_mapper.models.
+    MapContribution). `name` follows the same character-else-username
+    fallback as RouteContributorOut."""
+
+    id: int
+    verb: Literal["added", "updated", "signature_linked"]
+    character_id: int | None = None
+    name: str
+    created_at: datetime
+
+
+class ConnectionDetailOut(Schema):
+    """Everything else known about a single WormholeConnection beyond
+    WormholeConnectionOut's own fields - who created it (resolved to a
+    display name) and its full contribution history. Deliberately not part
+    of WormholeConnectionOut itself: both are too expensive to compute for
+    every connection in a bulk fetch (get_map_state, a route's legs), so
+    this is a dedicated on-demand endpoint for the right-click "Details"
+    view instead."""
+
+    created_by_name: str | None = None
+    contributions: list[MapContributionOut]
 
 
 class WormholeConnectionCreate(Schema):
@@ -367,11 +411,23 @@ class RouteLegOut(Schema):
     connection: WormholeConnectionOut | None = None
 
 
+class RouteContributorOut(Schema):
+    """Someone credited with bounty-worthy work (finding or maintaining a
+    wormhole connection) along a computed route - see
+    wh_mapper.models.MapContribution and
+    wh_mapper.api.helpers._contributors_for_connection_ids."""
+
+    character_id: int | None = None
+    name: str
+    contribution_count: int
+
+
 class RouteDetail(Schema):
     """The ordered path - len(legs) == len(systems) - 1"""
 
     systems: list[SolarSystemOut]
     legs: list[RouteLegOut]
+    contributors: list[RouteContributorOut] = []
 
 
 class RouteOut(Schema):
@@ -407,6 +463,7 @@ class SharedRouteOut(Schema):
     found: bool
     systems: list[SolarSystemOut]
     legs: list[RouteLegOut]
+    contributors: list[RouteContributorOut] = []
     # A strictly-shorter, risk-ignoring alternative to systems/legs above -
     # see wh_mapper.pathfinding.RouteComputation.alternate.
     alternate: RouteDetail | None = None

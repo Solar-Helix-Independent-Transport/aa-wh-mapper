@@ -48,6 +48,8 @@ import { FloatingEdge } from "./FloatingEdge";
 import { FloatingConnectionLine } from "./FloatingConnectionLine";
 import { MapLegend } from "./MapLegend";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { ConnectionDetailsDialog } from "./ConnectionDetailsDialog";
+import { SystemDetailsDialog } from "./SystemDetailsDialog";
 import {
   connectionWormholeType,
   effectiveLifeStatus,
@@ -103,6 +105,10 @@ export function MapCanvas({
     y: number;
     items: ContextMenuItem[];
   } | null>(null);
+  const [detailsConnectionId, setDetailsConnectionId] = useState<number | null>(
+    null,
+  );
+  const [detailsSystemId, setDetailsSystemId] = useState<number | null>(null);
   const now = useNow(LIFE_STATUS_CHECK_INTERVAL_MS);
 
   // Deliberately excludes selectedSystemId - which system is panel-selected
@@ -492,6 +498,12 @@ export function MapCanvas({
         items: [
           {
             kind: "action",
+            label: "Details",
+            onClick: () => setDetailsSystemId(systemId),
+          },
+          { kind: "separator" },
+          {
+            kind: "action",
             label: pinned ? "Unlock system" : "Lock system (home base)",
             onClick: () => {
               updateSystem(mapId, systemId, { pinned: !pinned }).catch((err) =>
@@ -562,6 +574,12 @@ export function MapCanvas({
       const connectionId = connection.id;
 
       const items: ContextMenuItem[] = [
+        {
+          kind: "action",
+          label: "Details",
+          onClick: () => setDetailsConnectionId(connectionId),
+        },
+        { kind: "separator" },
         {
           kind: "submenu",
           label: "Type",
@@ -785,6 +803,63 @@ export function MapCanvas({
           onClose={() => setMenu(null)}
         />
       )}
+      {detailsConnectionId !== null &&
+        (() => {
+          const connection = state.connections.find(
+            (c) => c.id === detailsConnectionId,
+          );
+          if (!connection) {
+            return null;
+          }
+          const topSystem = state.systems.find(
+            (s) => s.id === connection.top_system_id,
+          );
+          const bottomSystem = state.systems.find(
+            (s) => s.id === connection.bottom_system_id,
+          );
+          return (
+            <ConnectionDetailsDialog
+              mapId={mapId}
+              connection={connection}
+              topSystemName={
+                topSystem?.label || topSystem?.solar_system.name || "?"
+              }
+              bottomSystemName={
+                bottomSystem?.label || bottomSystem?.solar_system.name || "?"
+              }
+              signatures={state.signatures}
+              onClose={() => setDetailsConnectionId(null)}
+            />
+          );
+        })()}
+      {detailsSystemId !== null &&
+        (() => {
+          const system = state.systems.find((s) => s.id === detailsSystemId);
+          if (!system) {
+            return null;
+          }
+          return (
+            <SystemDetailsDialog
+              mapId={mapId}
+              system={system}
+              characters={state.tracked_characters
+                .filter(
+                  (tc) => tc.last_solar_system?.id === system.solar_system.id,
+                )
+                .map((tc) => ({
+                  name: tc.character_name,
+                  isOwn: tc.added_by_id === state.current_user_id,
+                }))}
+              connections={state.connections.filter(
+                (c) =>
+                  c.top_system_id === system.id ||
+                  c.bottom_system_id === system.id,
+              )}
+              allSystems={state.systems}
+              onClose={() => setDetailsSystemId(null)}
+            />
+          );
+        })()}
     </SelectedSystemProvider>
   );
 }

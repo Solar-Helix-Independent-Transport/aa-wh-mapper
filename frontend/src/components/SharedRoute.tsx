@@ -14,6 +14,7 @@ import { useRouteSocket } from "../hooks/useRouteSocket";
 import { LoadingState } from "./LoadingState";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { RouteAlternateBanner } from "./RouteAlternateBanner";
+import { RouteContributors } from "./RouteContributors";
 import { RouteDiagram } from "./RouteDiagram";
 import { RouteItinerary } from "./RouteItinerary";
 
@@ -78,7 +79,11 @@ export function SharedRoute({ routeId }: { routeId: number }) {
   const displayedRoute =
     showingAlternate && route.alternate
       ? route.alternate
-      : { systems: route.systems, legs: route.legs };
+      : {
+          systems: route.systems,
+          legs: route.legs,
+          contributors: route.contributors,
+        };
 
   return (
     <div className="route-view">
@@ -141,6 +146,10 @@ export function SharedRoute({ routeId }: { routeId: number }) {
                 legs={displayedRoute.legs}
                 selectedSystemId={selectedSystemId}
               />
+            )}
+
+            {route.found && (
+              <RouteContributors contributors={displayedRoute.contributors} />
             )}
           </div>
         </ResizableSidePanel>

@@ -573,3 +573,59 @@ class ConnectionFlag(models.Model):
 
     def __str__(self) -> str:
         return f"flag on {self.connection_id} by {self.flagged_by}"
+
+
+class MapContribution(models.Model):
+    """An append-only log of contribution-worthy work on a wormhole
+    connection - who found it and who kept its status accurate - for
+    bounty attribution on routes computed across it (see
+    wh_mapper.api.helpers.record_contribution /
+    _contributors_for_connection_ids).
+
+    Deliberately separate from WormholeConnection.created_by, which only
+    ever holds the most recent actor: this preserves every actor across a
+    connection's lifetime, so a life/mass-status update by someone other
+    than whoever first drew the connection still earns credit. Only ever
+    recorded for connection_type=wormhole - stargates are static/
+    auto-detected and ansiblex are player-built infrastructure, neither is
+    "found" by anyone the way a scanned wormhole signature is.
+    """
+
+    class Verb(models.TextChoices):
+        """Choices for MapContribution.verb"""
+
+        ADDED = "added", "Added connection"
+        UPDATED = "updated", "Updated connection status"
+        SIGNATURE_LINKED = "signature_linked", "Linked signature"
+
+    map = models.ForeignKey(Map, on_delete=models.CASCADE, related_name="contributions")
+    # SET_NULL, not CASCADE - a route computed before the wormhole
+    # collapsed still owes credit for the work that made it possible, so
+    # the log outlives the connection row it was recorded against.
+    connection = models.ForeignKey(
+        WormholeConnection,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contributions",
+    )
+    verb = models.CharField(max_length=20, choices=Verb.choices)
+    # A snapshot of the acting user's main character at record time, not a
+    # live lookup - rebinding your main later shouldn't retroactively
+    # rewrite past bounty history.
+    character = models.ForeignKey(
+        EveCharacter, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.verb} on {self.connection_id} by {self.character or self.user}"

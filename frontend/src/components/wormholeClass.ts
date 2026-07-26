@@ -3,11 +3,24 @@ import type {
   WormholeConnectionOut,
   WormholeTypeOut,
 } from "../api/types";
-import { LIFE_STATUS_HOUR_BOUNDS } from "../constants";
+import {
+  LIFE_STATUS_HOUR_BOUNDS,
+  UNKNOWN_STABLE_MAX_HOURS,
+} from "../constants";
 
 // Common community convention for EVE's wormhole_class_id; not verified against
 // a real imported SDE in this workspace (see docs/wh-mapper-plan.md). Treat as
 // a display hint, not authoritative game data.
+// Shared by ConnectionDetailsDialog and SystemDetailsDialog's connections
+// list - kept here (a non-component module) rather than in either dialog
+// file, since exporting a plain constant from a component file breaks fast
+// refresh.
+export const CONNECTION_TYPE_LABEL: Record<string, string> = {
+  wormhole: "Wormhole",
+  stargate: "Stargate",
+  ansiblex: "Jump bridge",
+};
+
 const CLASS_LABELS: Record<number, string> = {
   1: "C1",
   2: "C2",
@@ -62,6 +75,11 @@ const LIFE_STATUS_BUCKET_HOURS: Record<string, number> = Object.fromEntries(
     LIFE_STATUS_HOUR_BOUNDS[index],
   ]),
 );
+// Stable's own assumed starting point - not part of the ladder above (it's
+// never a threshold lifeStatusForRemainingHours checks against), but still
+// needs an entry so an unidentified "stable" pick counts down like any
+// other manual bucket instead of sitting frozen forever.
+LIFE_STATUS_BUCKET_HOURS.stable = UNKNOWN_STABLE_MAX_HOURS;
 
 // Mirrors wh_mapper.api.helpers.life_status_for_remaining_hours - the
 // smallest (tightest) bound the value still fits under wins, so this checks

@@ -29,6 +29,7 @@ from allianceauth.eveonline.models import (
 from wh_mapper.constants import LOCATION_SCOPES
 from wh_mapper.models import (
     Map,
+    MapContribution,
     MapPresence,
     MapSystem,
     TrackedCharacter,
@@ -177,7 +178,7 @@ class TestMapApi(TestCase):
         self.assertEqual(by_name["Jita"]["region_name"], "Jita Region")
         self.assertEqual(by_name["J123456"]["space_type"], "Wormhole")
 
-    def test_update_connection_life_status_bucket_sets_and_clears_marked_at(self):
+    def test_update_connection_life_status_bucket_always_sets_marked_at(self):
         map_id = self.client.post(
             "/wh-mapper/api/maps/",
             data=json.dumps({"name": "EOL Connection Map"}),
@@ -217,9 +218,142 @@ class TestMapApi(TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["life_status"], "stable")
-        self.assertIsNone(body["life_status_marked_at"])
+        # Stable is stamped too (not cleared) - it counts down from
+        # UNKNOWN_STABLE_MAX_HOURS like any other bucket rather than
+        # sitting frozen forever - see apply_life_status.
+        self.assertIsNotNone(body["life_status_marked_at"])
 
-    def test_update_signature_life_status_bucket_sets_and_clears_marked_at(self):
+    def test_wormhole_connection_lifecycle_records_contributions(self):
+        map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Contribution Map"}),
+            content_type="application/json",
+        ).json()["id"]
+        top_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.jita.id}),
+            content_type="application/json",
+        ).json()["id"]
+        bottom_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.j_system.id}),
+            content_type="application/json",
+        ).json()["id"]
+
+        connection_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/connections/",
+            data=json.dumps({"top_system_id": top_id, "bottom_system_id": bottom_id}),
+            content_type="application/json",
+        ).json()["id"]
+
+        self.assertEqual(
+            list(
+                MapContribution.objects.filter(connection_id=connection_id).values_list(
+                    "verb", "character_id"
+                )
+            ),
+            [(MapContribution.Verb.ADDED, self.alice.profile.main_character_id)],
+        )
+
+        self.client.patch(
+            f"/wh-mapper/api/maps/{map_id}/connections/{connection_id}/",
+            data=json.dumps({"mass_status": "reduced"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(
+            list(
+                MapContribution.objects.filter(connection_id=connection_id).order_by(
+                    "id"
+                ).values_list("verb", flat=True)
+            ),
+            [MapContribution.Verb.ADDED, MapContribution.Verb.UPDATED],
+        )
+
+    def test_stargate_connections_are_never_credited_as_contributions(self):
+        map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Stargate Contribution Map"}),
+            content_type="application/json",
+        ).json()["id"]
+        top_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.jita.id}),
+            content_type="application/json",
+        ).json()["id"]
+        bottom_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.amarr.id}),
+            content_type="application/json",
+        ).json()["id"]
+
+        self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/connections/",
+            data=json.dumps(
+                {
+                    "top_system_id": top_id,
+                    "bottom_system_id": bottom_id,
+                    "connection_type": "stargate",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertFalse(MapContribution.objects.exists())
+
+    def test_connection_details_returns_creator_name_and_contribution_history(self):
+        map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Details Map"}),
+            content_type="application/json",
+        ).json()["id"]
+        top_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.jita.id}),
+            content_type="application/json",
+        ).json()["id"]
+        bottom_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.j_system.id}),
+            content_type="application/json",
+        ).json()["id"]
+        connection_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/connections/",
+            data=json.dumps({"top_system_id": top_id, "bottom_system_id": bottom_id}),
+            content_type="application/json",
+        ).json()["id"]
+        self.client.patch(
+            f"/wh-mapper/api/maps/{map_id}/connections/{connection_id}/",
+            data=json.dumps({"mass_status": "reduced"}),
+            content_type="application/json",
+        )
+
+        response = self.client.get(
+            f"/wh-mapper/api/maps/{map_id}/connections/{connection_id}/details/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["created_by_name"], self.alice.profile.main_character.character_name)
+        self.assertEqual(
+            [c["verb"] for c in body["contributions"]],
+            ["updated", "added"],
+        )
+        self.assertTrue(
+            all(c["name"] == self.alice.profile.main_character.character_name for c in body["contributions"])
+        )
+
+    def test_connection_details_permission_required(self):
+        self.client.logout()
+        self.client.login(username="api_noperm", password="test-password")
+
+        response = self.client.get(
+            f"/wh-mapper/api/maps/1/connections/1/details/"
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_update_signature_life_status_bucket_always_sets_marked_at(self):
         map_id = self.client.post(
             "/wh-mapper/api/maps/",
             data=json.dumps({"name": "EOL Signature Map"}),
@@ -254,7 +388,8 @@ class TestMapApi(TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["life_status"], "stable")
-        self.assertIsNone(body["life_status_marked_at"])
+        # Stable is stamped too (not cleared) - see apply_life_status.
+        self.assertIsNotNone(body["life_status_marked_at"])
 
     def test_signature_created_directly_with_bucket_sets_marked_at(self):
         map_id = self.client.post(
@@ -309,6 +444,35 @@ class TestMapApi(TestCase):
         response = self.client.delete(f"/wh-mapper/api/maps/{map_id}/systems/{system_id}/")
         self.assertEqual(response.status_code, 204)
         self.assertFalse(MapSystem.objects.filter(pk=system_id).exists())
+
+    def test_system_details_returns_placer_name(self):
+        map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "System Details Map"}),
+            content_type="application/json",
+        ).json()["id"]
+        system_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.jita.id}),
+            content_type="application/json",
+        ).json()["id"]
+
+        response = self.client.get(
+            f"/wh-mapper/api/maps/{map_id}/systems/{system_id}/details/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["added_by_name"], self.alice.profile.main_character.character_name
+        )
+
+    def test_system_details_permission_required(self):
+        self.client.logout()
+        self.client.login(username="api_noperm", password="test-password")
+
+        response = self.client.get("/wh-mapper/api/maps/1/systems/1/details/")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_map_state_includes_system_owner(self):
         EveFactionInfo.objects.create(faction_id=500011, faction_name="Caldari State")

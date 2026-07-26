@@ -17,6 +17,7 @@ from wh_mapper.api.helpers import (
     single_system_owner,
     solar_system_to_schema,
     system_to_schema,
+    user_display_name,
 )
 from wh_mapper.broadcast import broadcast_map_event
 from wh_mapper.models import MapSystem, Signature, WormholeConnection
@@ -99,6 +100,29 @@ class MapSystemApiEndpoints:
             broadcast_map_event(map_obj.id, "system.updated", out)
 
             return out
+
+        @api.get(
+            "/maps/{map_id}/systems/{system_id}/details/",
+            response={200: schema.SystemDetailOut, 403: str, 404: str},
+            tags=self.tags,
+        )
+        def get_system_details(request, map_id: int, system_id: int):
+            """The one piece of a system's detail view not already sitting
+            in the frontend's own map state - see schema.SystemDetailOut."""
+
+            map_obj, error = require_visible_map(request, map_id)
+            if error:
+                return error
+
+            system = get_object_or_404(
+                MapSystem.objects.select_related(
+                    "added_by__profile__main_character"
+                ),
+                pk=system_id,
+                map=map_obj,
+            )
+
+            return {"added_by_name": user_display_name(system.added_by)}
 
         @api.delete(
             "/maps/{map_id}/systems/{system_id}/",

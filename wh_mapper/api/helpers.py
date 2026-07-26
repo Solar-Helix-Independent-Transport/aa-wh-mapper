@@ -9,7 +9,7 @@ from eve_sde.models import Region, SolarSystem, Stargate
 
 # Django
 from django.db import IntegrityError
-from django.db.models import Min, Q
+from django.db.models import Max, Min, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -23,11 +23,13 @@ from wh_mapper.constants import (
     CONNECTION_TIME_STATUS_ORANGE_THRESHOLD,
     HIGH_SEC_SECURITY_THRESHOLD,
     LIFE_STATUS_HOUR_BOUNDS,
+    UNKNOWN_STABLE_MAX_HOURS,
     WORMHOLE_SPACE_ID_MAX,
     WORMHOLE_SPACE_ID_MIN,
 )
 from wh_mapper.models import (
     Map,
+    MapContribution,
     MapPresence,
     MapSystem,
     Signature,
@@ -132,6 +134,31 @@ def can_edit_sharing(request, map_obj: Map) -> bool:
     return map_obj.owner_id == request.user.id or request.user.is_superuser
 
 
+def map_last_updated(map_obj: Map):
+    """The most recent map-content change - created_at alone never changes,
+    so this is the max of created_at, any system's added_at, and any
+    connection's or signature's updated_at. Falls back to created_at for a
+    still-empty map (nothing added yet)."""
+
+    candidates = [map_obj.created_at]
+
+    latest_system = map_obj.systems.aggregate(latest=Max("added_at"))["latest"]
+    if latest_system:
+        candidates.append(latest_system)
+
+    latest_connection = map_obj.connections.aggregate(latest=Max("updated_at"))["latest"]
+    if latest_connection:
+        candidates.append(latest_connection)
+
+    latest_signature = Signature.objects.filter(map_system__map=map_obj).aggregate(
+        latest=Max("updated_at")
+    )["latest"]
+    if latest_signature:
+        candidates.append(latest_signature)
+
+    return max(candidates)
+
+
 def map_to_schema(map_obj: Map, request) -> dict:
     """Serialize a Map to MapOut shape"""
 
@@ -142,6 +169,7 @@ def map_to_schema(map_obj: Map, request) -> dict:
         "owner_name": map_obj.owner.username,
         "visibility": map_obj.visibility,
         "created_at": map_obj.created_at,
+        "last_updated": map_last_updated(map_obj),
         "is_owner": map_obj.owner_id == request.user.id,
         "can_edit_sharing": can_edit_sharing(request, map_obj),
         "active_users": MapPresence.objects.filter(map=map_obj)
@@ -364,18 +392,23 @@ def signature_to_schema(signature) -> dict:
 
 
 def apply_life_status(obj, new_life_status: str) -> None:
-    """Set life_status on a Signature/WormholeConnection, stamping (or
-    clearing) life_status_marked_at to match - see
-    Signature.life_status_marked_at for why that needs its own timestamp
-    distinct from updated_at. Only meaningful as a manual countdown anchor
-    while the wormhole type is still unidentified (see LifeStatus) - once
-    the real type takes over, life_status_marked_at is simply ignored.
+    """Set life_status on a Signature/WormholeConnection, stamping
+    life_status_marked_at to match - see Signature.life_status_marked_at
+    for why that needs its own timestamp distinct from updated_at. Only
+    meaningful as a manual countdown anchor while the wormhole type is
+    still unidentified (see LifeStatus) - once the real type takes over,
+    life_status_marked_at is simply ignored.
+
+    Stable is stamped too, not cleared - it counts down from
+    UNKNOWN_STABLE_MAX_HOURS just like any other bucket (see
+    LIFE_STATUS_BUCKET_HOURS below), so an unidentified wormhole marked
+    stable still eventually ages out and gets pruned by
+    wh_mapper.tasks.age_wormhole_connections instead of sitting frozen
+    forever.
     """
 
     obj.life_status = new_life_status
-    obj.life_status_marked_at = (
-        None if new_life_status == Signature.LifeStatus.STABLE else timezone.now()
-    )
+    obj.life_status_marked_at = timezone.now()
 
 
 # Ordered the same as constants.LIFE_STATUS_HOUR_BOUNDS - pairs each bucket
@@ -390,6 +423,11 @@ LIFE_STATUS_BUCKET_ORDER = [
     Signature.LifeStatus.LESS_THAN_1H,
 ]
 LIFE_STATUS_BUCKET_HOURS = dict(zip(LIFE_STATUS_BUCKET_ORDER, LIFE_STATUS_HOUR_BOUNDS))
+# Stable's own assumed starting point - not part of the ladder above (it's
+# never a threshold life_status_for_remaining_hours checks against), but
+# still needs an entry here so remaining_life_hours can count an
+# unidentified "stable" pick down from it like any other manual bucket.
+LIFE_STATUS_BUCKET_HOURS[Signature.LifeStatus.STABLE] = UNKNOWN_STABLE_MAX_HOURS
 
 
 def life_status_for_remaining_hours(remaining_hours: float) -> str:
@@ -554,6 +592,33 @@ def connection_to_schema(connection) -> dict:
     }
 
 
+def user_display_name(user) -> str | None:
+    """The name to credit a user by - their main character if one is set,
+    else their plain username. Same fallback
+    _contributors_for_connection_ids uses for route-level credit."""
+
+    if user is None:
+        return None
+    character = getattr(getattr(user, "profile", None), "main_character", None)
+    return character.character_name if character else user.username
+
+
+def map_contribution_to_schema(contribution) -> dict:
+    """Serialize a MapContribution to MapContributionOut shape"""
+
+    return {
+        "id": contribution.id,
+        "verb": str(contribution.verb),
+        "character_id": contribution.character_id,
+        "name": (
+            contribution.character.character_name
+            if contribution.character_id
+            else (user_display_name(contribution.user) or "Unknown")
+        ),
+        "created_at": contribution.created_at,
+    }
+
+
 def stargate_connects(solar_system_a, solar_system_b) -> bool:
     """Whether a real in-game stargate links these two eve_sde SolarSystems
     (either direction) - used to auto-detect k-space stargate connections
@@ -675,6 +740,70 @@ def create_connection(
         ship_size_limit=ship_size_limit,
         created_by=created_by,
     )
+
+
+def record_contribution(connection, user, verb: str) -> None:
+    """Log a bounty-attribution-worthy action on a wormhole connection (see
+    wh_mapper.models.MapContribution) - a no-op for stargate/ansiblex
+    connections (static/auto-detected, never "found" by anyone) or an
+    unauthenticated actor (e.g. the character auto-grow task, which passes
+    no user at all). `character` is snapshotted from the acting user's
+    current main character at record time, not looked up live later.
+    """
+
+    if connection.connection_type != WormholeConnection.ConnectionType.WORMHOLE:
+        return
+    if user is None or not user.is_authenticated:
+        return
+
+    character = getattr(getattr(user, "profile", None), "main_character", None)
+    MapContribution.objects.create(
+        map_id=connection.map_id,
+        connection=connection,
+        verb=verb,
+        character=character,
+        user=user,
+    )
+
+
+def _contributors_for_connection_ids(connection_ids) -> list[dict]:
+    """Aggregate MapContribution rows recorded against the given
+    WormholeConnection ids into a per-character contributor list, for a
+    route's bounty attribution. Sorted by contribution count descending,
+    then name. Falls back to the acting account's username when no main
+    character was set at record time - same fallback map_to_schema's
+    owner_name uses for a Map's owner."""
+
+    connection_ids = [cid for cid in connection_ids if cid is not None]
+    if not connection_ids:
+        return []
+
+    contributions = MapContribution.objects.filter(
+        connection_id__in=connection_ids
+    ).select_related("character", "user")
+
+    counts: dict[tuple, dict] = {}
+    for contribution in contributions:
+        if contribution.character_id is not None:
+            key = ("character", contribution.character_id)
+            name = contribution.character.character_name
+        elif contribution.user_id is not None:
+            key = ("user", contribution.user_id)
+            name = contribution.user.username
+        else:
+            continue
+
+        entry = counts.setdefault(
+            key,
+            {
+                "character_id": contribution.character_id,
+                "name": name,
+                "contribution_count": 0,
+            },
+        )
+        entry["contribution_count"] += 1
+
+    return sorted(counts.values(), key=lambda entry: (-entry["contribution_count"], entry["name"]))
 
 
 def auto_link_stargates(map_obj, new_system, user, broadcast: bool = True) -> int:
@@ -976,6 +1105,8 @@ def shared_route_to_schema(route, request) -> dict:
     are already the cached, wholesale-replaced JSON (see recompute_route) -
     no live computation here."""
 
+    connection_ids = [leg.get("connection_id") for leg in route.legs]
+
     return {
         "id": route.id,
         "owner_id": route.owner_id,
@@ -986,6 +1117,7 @@ def shared_route_to_schema(route, request) -> dict:
         "systems": route.systems,
         "legs": route.legs,
         "alternate": route.alternate,
+        "contributors": _contributors_for_connection_ids(connection_ids),
         "last_computed_at": route.last_computed_at,
         "is_owner": route.owner_id == request.user.id,
     }
@@ -1049,6 +1181,7 @@ def _route_result_to_detail_schema(result) -> dict | None:
             }
             for leg in result.legs
         ],
+        "contributors": _contributors_for_connection_ids(connection_ids),
     }
 
 

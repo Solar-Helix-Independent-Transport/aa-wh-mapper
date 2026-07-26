@@ -7,6 +7,7 @@ export interface MapOut {
   owner_name: string;
   visibility: MapVisibility;
   created_at: string;
+  last_updated: string;
   is_owner: boolean;
   can_edit_sharing: boolean;
   active_users: number;
@@ -46,6 +47,12 @@ export interface MapSystemOut {
   pinned: boolean;
   added_by_id: number | null;
   added_at: string;
+}
+
+// The one piece of a system's detail view not already sitting in
+// MapStateOut - see wh_mapper.api.schema.SystemDetailOut.
+export interface SystemDetailOut {
+  added_by_name: string | null;
 }
 
 export interface WormholeTypeOut {
@@ -194,9 +201,19 @@ export interface RouteLegOut {
   connection: WormholeConnectionOut | null;
 }
 
+// Someone credited with bounty-worthy work (finding or maintaining a
+// wormhole connection) along a computed route - see
+// wh_mapper.models.MapContribution.
+export interface RouteContributorOut {
+  character_id: number | null;
+  name: string;
+  contribution_count: number;
+}
+
 export interface RouteDetail {
   systems: SolarSystemOut[];
   legs: RouteLegOut[];
+  contributors: RouteContributorOut[];
 }
 
 export interface RouteOut {
@@ -219,9 +236,28 @@ export interface SharedRouteOut {
   found: boolean;
   systems: SolarSystemOut[];
   legs: RouteLegOut[];
+  contributors: RouteContributorOut[];
   alternate: RouteDetail | null;
   last_computed_at: string | null;
   is_owner: boolean;
+}
+
+// One MapContribution row - a single bounty-attribution-worthy action
+// recorded against a wormhole connection. `name` follows the same
+// character-else-username fallback as RouteContributorOut.
+export interface MapContributionOut {
+  id: number;
+  verb: "added" | "updated" | "signature_linked";
+  character_id: number | null;
+  name: string;
+  created_at: string;
+}
+
+// Everything beyond WormholeConnectionOut's own fields for the right-click
+// "Details" view - see wh_mapper.api.schema.ConnectionDetailOut.
+export interface ConnectionDetailOut {
+  created_by_name: string | null;
+  contributions: MapContributionOut[];
 }
 
 export interface ConnectionFlagOut {

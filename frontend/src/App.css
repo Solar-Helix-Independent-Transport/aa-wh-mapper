@@ -208,6 +208,11 @@
   font-size: 13px;
 }
 
+.map-card-updated {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
 .map-card-info {
   display: flex;
   align-items: center;
@@ -1208,6 +1213,29 @@ action rather than blend in as plain text like .link-button does. */
   gap: 8px;
 }
 
+.connection-details-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+
+.connection-details-contributions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.connection-details-contributions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .search-results {
   list-style: none;
   margin: 0;
@@ -1637,14 +1665,21 @@ against its own .resizable-panel-wrapper. */
 }
 
 .route-itinerary-item {
-  padding: 0;
+  /* Lives here rather than on .route-itinerary-system so the highlight
+  below (painted on this element) is centered on the padded box, not just
+  on the title's own content - the title no longer carries its own
+  padding at all. */
+  padding: 5px 0;
   border-radius: 4px;
   transition: background-color 0.1s ease;
 }
 
 /* Matches SystemNode's own .system-node-selected treatment (App.css) -
 same "this is the selected one" visual language as the map, for the row
-that corresponds to whichever node was last clicked in RouteDiagram. */
+that corresponds to whichever node was last clicked in RouteDiagram. Reads
+cleanly against the connector line/dots below because those are now fully
+contained within their own row's box (see .route-leg-connector::before/
+::after) - nothing crosses this ring's edge for it to cut through. */
 .route-itinerary-item-selected {
   background: var(--accent-bg);
   box-shadow: 0 0 0 1px var(--accent);
@@ -1653,7 +1688,6 @@ that corresponds to whichever node was last clicked in RouteDiagram. */
 .route-itinerary-system {
   display: flex;
   align-items: center;
-  padding: 10px 0;
   color: var(--text-bright);
   font-weight: 500;
 }
@@ -1665,7 +1699,7 @@ that corresponds to whichever node was last clicked in RouteDiagram. */
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  margin-right: 6px;
+  margin: 0 6px;
   border-radius: 50%;
   border: 1px solid var(--accent);
   color: var(--accent-bright);
@@ -1691,7 +1725,8 @@ that corresponds to whichever node was last clicked in RouteDiagram. */
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 0;
+  margin-top: 7px;
+  margin-left: 6px;
   /* Just enough to clear the connector line/dots (centered at 10px) - the
   body sits right beside the line rather than under the name. */
   padding-left: 20px;
@@ -1733,6 +1768,12 @@ markers at each end (see the pseudo-elements below). */
   );
 }
 
+/* Rounded end-caps on the line, fully inside .route-leg-row's own box (no
+negative offset) - each leg-row's connector now starts and ends strictly
+within the row it belongs to, so it never overhangs into a neighboring
+row's box (see .route-itinerary-item-selected above, which used to have
+its highlight ring cut through this cap when it poked 2.5px past the
+boundary). */
 .route-leg-connector::before,
 .route-leg-connector::after {
   content: "";
@@ -1746,11 +1787,11 @@ markers at each end (see the pseudo-elements below). */
 }
 
 .route-leg-connector::before {
-  top: -2.5px;
+  top: 0;
 }
 
 .route-leg-connector::after {
-  bottom: -2.5px;
+  bottom: 0;
 }
 
 .route-leg-summary {
@@ -1821,6 +1862,50 @@ line rather than running together as an undifferentiated pair. */
 
 .route-leg-result {
   color: var(--success);
+  font-size: 12px;
+}
+
+.route-contributors {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.route-contributors-title {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.route-contributors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-contributors-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.route-contributors-name {
+  color: var(--text-bright);
+}
+
+.route-contributors-count {
+  color: var(--accent-bright);
+  font-family: var(--mono);
   font-size: 12px;
 }
 
