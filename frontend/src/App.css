@@ -157,67 +157,15 @@
   cursor: default;
 }
 
-.map-search-input {
-  width: 100%;
-  margin-top: 12px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-inset);
-  color: var(--text-bright);
-}
-
 .dialog-actions {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.map-cards {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.map-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-raised);
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.map-card:hover {
-  border-color: var(--accent);
-}
-
 .map-card-name {
   color: var(--text-bright);
   font-weight: 500;
-}
-
-.map-card-owner {
-  color: var(--text-dim);
-  font-size: 13px;
-}
-
-.map-card-updated {
-  color: var(--text-dim);
-  font-size: 12px;
-}
-
-.map-card-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
 }
 
 .map-card-rename-input {
@@ -238,8 +186,8 @@
   transition: opacity 0.1s ease;
 }
 
-.map-card:hover .map-card-actions,
-.map-card:focus-within .map-card-actions {
+.data-table-row-clickable:hover .map-card-actions,
+.data-table-row-clickable:focus-within .map-card-actions {
   opacity: 1;
 }
 
@@ -695,6 +643,72 @@ are set by the system's space type - .system-node-name overrides this
   background: rgba(166, 140, 255, 0.24);
 }
 
+/* Wormhole class danger accent (see WORMHOLE_CLASS_DANGER_CSS) - a
+    green(C1)->red(C5+) hard-edge stripe filling the left 35% of the
+    titlebar, with the remaining 65% staying .space-wormhole's plain purple -
+    purple stays the dominant color so the node still reads as "wormhole"
+    first and "how dangerous" second, rather than the danger color
+    overwhelming the badge and reading as a re-skinned High/Low/Null-sec
+    (green/orange/red are already those space types' colors above). C5, C6,
+    C13 (shattered), and the five Drifter regions all share the same red
+    (.wh-class-dangerous) - danger stops escalating in color past C5, it's
+    just "red" from there up. Thera keeps the plain .space-wormhole
+    background instead of joining this ladder. Text color is uniformly the
+    wormhole purple regardless of the left stripe's color, since the stripe
+    is an accent, not something that needs its own contrasting text. */
+.wh-class-1,
+.wh-class-2,
+.wh-class-3,
+.wh-class-4,
+.wh-class-dangerous {
+  color: #a68cff;
+}
+
+.wh-class-1 {
+  background: linear-gradient(
+    to right,
+    rgba(74, 222, 128, 0.28) 0%,
+    rgba(166, 140, 255, 0.24) 35%,
+    rgba(166, 140, 255, 0.24) 100%
+  );
+}
+
+.wh-class-2 {
+  background: linear-gradient(
+    to right,
+    rgba(212, 230, 53, 0.28) 0%,
+    rgba(166, 140, 255, 0.24) 35%,
+    rgba(166, 140, 255, 0.24) 100%
+  );
+}
+
+.wh-class-3 {
+  background: linear-gradient(
+    to right,
+    rgba(250, 204, 21, 0.28) 0%,
+    rgba(166, 140, 255, 0.24) 35%,
+    rgba(166, 140, 255, 0.24) 100%
+  );
+}
+
+.wh-class-4 {
+  background: linear-gradient(
+    to right,
+    rgba(255, 152, 84, 0.28) 0%,
+    rgba(166, 140, 255, 0.24) 35%,
+    rgba(166, 140, 255, 0.24) 100%
+  );
+}
+
+.wh-class-dangerous {
+  background: linear-gradient(
+    to right,
+    rgba(255, 33, 33, 0.32) 0%,
+    rgba(166, 140, 255, 0.24) 35%,
+    rgba(166, 140, 255, 0.24) 100%
+  );
+}
+
 .space-pochven,
 .space-abyssal {
   color: #ff8cf0;
@@ -708,6 +722,14 @@ are set by the system's space type - .system-node-name overrides this
 
 .system-node-effect {
   font-style: italic;
+}
+
+/* Pushed to the far right of .system-node-location's flex row, away from
+  the place/effect text on the left - an auto margin rather than
+  justify-content on the parent, so place/effect stay left-aligned among
+  themselves when the sig count isn't shown at all. */
+.system-node-sigs {
+  margin-left: auto;
 }
 
 .system-node-characters {
@@ -1500,6 +1522,160 @@ reminder rather than a one-time notice. */
   background: rgba(255, 255, 255, 0.08);
 }
 
+.fleet-panel-toggle {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.fleet-panel-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.fleet-panel {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+
+.fleet-panel-sessions,
+.fleet-panel-picker {
+  margin-bottom: 16px;
+}
+
+.fleet-panel h4 {
+  margin: 0 0 8px;
+  color: var(--text-bright);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.fleet-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fleet-panel-picker li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fleet-panel-empty {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.fleet-panel-session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.fleet-panel-session-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.fleet-overlay-chain {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.fleet-overlay-chain-item {
+  display: flex;
+  align-items: center;
+}
+
+.fleet-overlay-chain-pill {
+  position: relative;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.fleet-overlay-chain-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-bright);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fleet-overlay-chain-arrow {
+  color: var(--text-dim);
+  margin: 0 4px;
+}
+
+.fleet-overlay-bands {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.fleet-overlay-band {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  min-height: 100px;
+}
+
+.fleet-overlay-band-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.fleet-overlay-member {
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.fleet-overlay-member-name {
+  display: block;
+  color: var(--text);
+}
+
+.fleet-overlay-member-ship {
+  display: block;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .fleet-overlay-bands {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .route-view-body {
   flex: 1;
   display: flex;
@@ -1974,4 +2150,185 @@ line rather than running together as an undifferentiated pair. */
 .connection-flag-row button:hover {
   border-color: var(--accent);
   color: var(--accent-bright);
+}
+
+.status-page {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.status-card {
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+
+.status-card h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.status-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.status-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 100px;
+}
+
+.status-stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.status-stat-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.status-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.status-table th {
+  text-align: left;
+  padding: 4px 8px;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--border);
+}
+
+.status-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot-ok {
+  background: #4ade80;
+}
+
+.status-dot-bad {
+  background: var(--danger);
+}
+
+.data-table-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.data-table-search {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+  font-size: 13px;
+  max-width: 320px;
+}
+
+.data-table-empty {
+  padding: 8px 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table-header-button {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.data-table-header-button:disabled {
+  cursor: default;
+}
+
+.data-table-header-button:not(:disabled):hover {
+  color: var(--text-bright);
+}
+
+.data-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table-row-clickable {
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.data-table-row-clickable:hover {
+  background: var(--bg-raised);
+}
+
+.data-table-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.data-table-pagination button {
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text-bright);
+}
+
+.data-table-pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.data-table-count {
+  margin-left: auto;
 }

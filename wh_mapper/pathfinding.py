@@ -87,6 +87,14 @@ def build_graph(user) -> Graph:
     per-map row would just be a redundant duplicate edge.
     """
 
+    # Imported here (not at module scope) - wh_mapper.api (the package,
+    # via its __init__ eagerly importing wh_mapper.api.route) imports this
+    # module at module scope, so a module-scope import here would be
+    # circular. Same reasoning as helpers.py's own lazy pathfinding import
+    # in recompute_route.
+    # AA WH Mapper App
+    from wh_mapper.api.helpers import connection_effective_mass_status
+
     graph: Graph = defaultdict(list)
 
     for source_id, dest_id in Stargate.objects.values_list("solar_system_id", "destination_id"):
@@ -97,7 +105,12 @@ def build_graph(user) -> Graph:
     connections = (
         WormholeConnection.objects.filter(map_id__in=visible_map_ids)
         .exclude(connection_type=WormholeConnection.ConnectionType.STARGATE)
-        .select_related("top_system", "bottom_system")
+        .select_related(
+            "top_system",
+            "bottom_system",
+            "top_signature__wormhole_type",
+            "bottom_signature__wormhole_type",
+        )
     )
 
     for connection in connections:
@@ -111,7 +124,11 @@ def build_graph(user) -> Graph:
             leg_mass_status = None
         else:
             leg_life_status = str(connection.life_status)
-            leg_mass_status = str(connection.mass_status)
+            # Effective (live-computed), not the raw stored field - an
+            # almost-critical hole should be routed around the same way it
+            # displays as critical elsewhere. See the fleet-mass-tracking
+            # wayfinder map's ticket 06.
+            leg_mass_status = str(connection_effective_mass_status(connection))
             weight = wormhole_weight(leg_life_status, leg_mass_status)
 
         leg = RouteLeg(
@@ -207,6 +224,29 @@ def shortest_path_by_hops(graph: Graph, start_id: int, end_id: int) -> RouteResu
         return RouteResult(found=False, system_ids=[], legs=[])
 
     return _reconstruct(previous, start_id, end_id)
+
+
+def bfs_hop_distances(graph: Graph, start_id: int) -> dict[int, int]:
+    """Hop-count (not risk-weighted) from `start_id` to every node reachable
+    from it, via plain BFS - unlike shortest_path_by_hops, this doesn't stop
+    at one particular destination, since fleet-mass-tracking's hop-distance
+    display (ticket 09) needs the distance to every fleet member's current
+    system at once, not just one. A node absent from the returned dict is
+    unreachable from `start_id` within this graph - the caller's "unknown"
+    state (ticket 09), not a 0 distance."""
+
+    distances: dict[int, int] = {start_id: 0}
+    queue: deque[int] = deque([start_id])
+
+    while queue:
+        node = queue.popleft()
+        for neighbor, _weight, _leg in graph.get(node, []):
+            if neighbor in distances:
+                continue
+            distances[neighbor] = distances[node] + 1
+            queue.append(neighbor)
+
+    return distances
 
 
 @dataclass

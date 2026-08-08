@@ -498,3 +498,137 @@ class ConnectionFlagAcceptResult(Schema):
 
     deleted: bool
     connection: WormholeConnectionOut | None = None
+
+
+class AvailableFleetCharacterOut(Schema):
+    """One character in the backseat-FC token pool - any character (across
+    every user's account, not just the requester's own) whose owner has
+    granted fleet-read ESI access. See the fleet-mass-tracking wayfinder
+    map's tickets 02/12."""
+
+    character_id: int
+    character_name: str
+    owner_name: str
+    has_active_session: bool
+
+
+class FleetMemberOut(Schema):
+    """One fleet member's live ship/location, as shown in the Navigate
+    view's fleet overlay - see ticket 10/12. `solar_system` is always
+    resolved (ESI always reports a real solar_system_id for every member);
+    `hop_distance` is None for ticket 09's "unknown" (unreachable within the
+    viewer's visible graph) state - distinct from 0 (the fleet boss
+    themselves) or 1 (adjacent)."""
+
+    character_id: int
+    character_name: str
+    ship_type_name: str
+    solar_system: SolarSystemOut
+    hop_distance: int | None = None
+
+
+class FleetSessionOut(Schema):
+    """A live backseat fleet-tracking session - see ticket 07/12."""
+
+    id: int
+    fc_character_id: int
+    fc_character_name: str
+    fleet_id: int
+    started_by_id: int
+    started_at: datetime
+    is_watcher: bool
+    # Mirrors SharedRouteOut.is_owner's shape - only the starter may stop
+    # this session (ticket 07), so the frontend needs this rather than
+    # comparing started_by_id against a raw current-user id it doesn't have.
+    is_starter: bool
+    members: list[FleetMemberOut]
+
+
+class SdeStatusOut(Schema):
+    """Local eve_sde import health - see wh_mapper.api.helpers.sde_status.
+    build_number/release_date/last_check_date are None if the SDE has never
+    been imported at all in this environment."""
+
+    build_number: int | None = None
+    release_date: datetime | None = None
+    last_check_date: datetime | None = None
+    total_solar_systems: int
+    total_jspace_systems: int
+    jspace_with_raw_wormhole_class: int
+
+
+class TaskHeartbeatOut(Schema):
+    """One periodic task's last-run status - see
+    wh_mapper.api.helpers.task_heartbeat_status. last_run_at/last_success are
+    None if the task has never run at all in this environment (still
+    counts as `stale`)."""
+
+    task_name: str
+    expected_interval_seconds: int
+    last_run_at: datetime | None = None
+    last_success: bool | None = None
+    last_error: str
+    stale: bool
+
+
+class UsageStatsOut(Schema):
+    """Coarse app-wide activity counts - see wh_mapper.api.helpers.usage_stats."""
+
+    total_maps: int
+    private_maps: int
+    shared_maps: int
+    active_tracked_characters: int
+    live_map_presences: int
+
+
+class WormholeTypeCoverageOut(Schema):
+    """How many WormholeType rows have each derived field populated - see
+    wh_mapper.api.helpers.wormhole_type_coverage."""
+
+    total: int
+    with_leads_to_class: int
+    with_max_mass: int
+    with_max_jump_mass: int
+    with_max_stable_time: int
+
+
+class MapSummaryOut(Schema):
+    """One Map row in the admin status page's full listing - see
+    wh_mapper.api.helpers.admin_map_list. Distinct from MapOut: this is an
+    admin-wide view (every map, not just the requesting user's visible
+    ones), so it carries no viewer-relative fields like is_owner."""
+
+    id: int
+    name: str
+    owner_name: str
+    visibility: Literal["private", "shared"]
+    created_at: datetime
+    last_updated: datetime
+    system_count: int
+    active_users: int
+
+
+class RouteSummaryOut(Schema):
+    """One current (not yet pruned) shared Route, for the admin status
+    page's full listing - see wh_mapper.api.helpers.admin_route_list."""
+
+    id: int
+    owner_name: str
+    start_system_name: str
+    end_system_name: str
+    visibility: Literal["private", "shared"]
+    found: bool
+    last_viewed_at: datetime
+    created_at: datetime
+
+
+class AppStatusOut(Schema):
+    """The whole admin status page's worth of data - see
+    wh_mapper.api.helpers.app_status_to_schema."""
+
+    sde: SdeStatusOut
+    tasks: list[TaskHeartbeatOut]
+    usage: UsageStatsOut
+    wormhole_types: WormholeTypeCoverageOut
+    maps: list[MapSummaryOut]
+    routes: list[RouteSummaryOut]

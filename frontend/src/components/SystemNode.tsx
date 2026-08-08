@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { MapSystemOut } from "../api/types";
-import { SPACE_TYPE_CLASS } from "../constants";
+import { SPACE_TYPE_CLASS, WORMHOLE_CLASS_DANGER_CSS } from "../constants";
 import { wormholeClassLabel } from "./wormholeClass";
 
 export type SystemNodeCharacter = {
@@ -54,12 +54,33 @@ function SystemNodeImpl({
     solarSystem.space_type === "Wormhole"
       ? wormholeClassLabel(solarSystem.wormhole_class_id)
       : null;
-  const headerTypeLabel = classLabel ?? solarSystem.space_type;
+  // The class now takes over the security-status slot instead (security
+  // status on a wormhole is always -1.0, never informative) - see the
+  // security-status span below - so this badge just names the broad
+  // category again, same as every other space type.
+  const headerTypeLabel = solarSystem.space_type;
+  // A wormhole system's titlebar is colored by danger (class), not just
+  // space type - falls back to the plain space-wormhole purple for Thera
+  // and any J-space system whose class couldn't be derived (see
+  // WORMHOLE_CLASS_DANGER_CSS's comment for why those two have no entry).
   const spaceTypeClass =
-    SPACE_TYPE_CLASS[solarSystem.space_type] ?? "space-unknown";
-  const location = [solarSystem.constellation_name, solarSystem.region_name]
-    .filter(Boolean)
-    .join(" · ");
+    solarSystem.space_type === "Wormhole"
+      ? ((solarSystem.wormhole_class_id !== null
+          ? WORMHOLE_CLASS_DANGER_CSS[solarSystem.wormhole_class_id]
+          : undefined) ?? "space-wormhole")
+      : (SPACE_TYPE_CLASS[solarSystem.space_type] ?? "space-unknown");
+  // Constellation/region are internal SDE designations with no in-game
+  // meaning for J-space (e.g. "A-C00311 · A-R00001") - the titlebar already
+  // conveys everything useful for a wormhole (class, via the security-status
+  // slot and the danger-color stripe), so skip this line there entirely
+  // rather than showing noise. K-space keeps it - those are real,
+  // recognizable region names.
+  const location =
+    solarSystem.space_type === "Wormhole"
+      ? ""
+      : [solarSystem.constellation_name, solarSystem.region_name]
+          .filter(Boolean)
+          .join(" · ");
 
   const classNames = [
     "system-node",
@@ -94,10 +115,14 @@ function SystemNodeImpl({
             aria-hidden="true"
           />
         )}
-        {solarSystem.security_status !== null && (
-          <span className="system-node-security">
-            {solarSystem.security_status.toFixed(1)}
-          </span>
+        {classLabel ? (
+          <span className="system-node-security">{classLabel}</span>
+        ) : (
+          solarSystem.security_status !== null && (
+            <span className="system-node-security">
+              {solarSystem.security_status.toFixed(1)}
+            </span>
+          )
         )}
         <span className="system-node-name">
           {system.label || solarSystem.name}
@@ -119,7 +144,12 @@ function SystemNodeImpl({
             {solarSystem.owner.ticker}
           </span>
         ) : (
-          <span className="system-node-type">{headerTypeLabel}</span>
+          // Skipped for wormholes - the security-status slot and the
+          // titlebar's danger-color stripe already say everything this
+          // badge would ("Wormhole", plus class), so it'd just be noise.
+          solarSystem.space_type !== "Wormhole" && (
+            <span className="system-node-type">{headerTypeLabel}</span>
+          )
         )}
       </div>
 

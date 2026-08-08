@@ -275,3 +275,107 @@ export interface ConnectionFlagAcceptResult {
   deleted: boolean;
   connection: WormholeConnectionOut | null;
 }
+
+// One character in the backseat-FC token pool - see the fleet-mass-
+// tracking wayfinder map's tickets 02/12.
+export interface AvailableFleetCharacterOut {
+  character_id: number;
+  character_name: string;
+  owner_name: string;
+  has_active_session: boolean;
+}
+
+// One fleet member's live ship/location - hop_distance is null for ticket
+// 09's "unknown" (unreachable within the viewer's visible graph) state,
+// distinct from 0 (the fleet boss) or 1 (adjacent).
+export interface FleetMemberOut {
+  character_id: number;
+  character_name: string;
+  ship_type_name: string;
+  solar_system: SolarSystemOut;
+  hop_distance: number | null;
+}
+
+export interface FleetSessionOut {
+  id: number;
+  fc_character_id: number;
+  fc_character_name: string;
+  fleet_id: number;
+  started_by_id: number;
+  started_at: string;
+  is_watcher: boolean;
+  is_starter: boolean;
+  members: FleetMemberOut[];
+}
+
+// Local eve_sde import health - build_number/release_date/last_check_date
+// are null if the SDE has never been imported at all in this environment.
+export interface SdeStatusOut {
+  build_number: number | null;
+  release_date: string | null;
+  last_check_date: string | null;
+  total_solar_systems: number;
+  total_jspace_systems: number;
+  jspace_with_raw_wormhole_class: number;
+}
+
+// One periodic task's last-run status - last_run_at/last_success are null
+// if the task has never run at all in this environment (still `stale`).
+export interface TaskHeartbeatOut {
+  task_name: string;
+  expected_interval_seconds: number;
+  last_run_at: string | null;
+  last_success: boolean | null;
+  last_error: string;
+  stale: boolean;
+}
+
+export interface UsageStatsOut {
+  total_maps: number;
+  private_maps: number;
+  shared_maps: number;
+  active_tracked_characters: number;
+  live_map_presences: number;
+}
+
+export interface WormholeTypeCoverageOut {
+  total: number;
+  with_leads_to_class: number;
+  with_max_mass: number;
+  with_max_jump_mass: number;
+  with_max_stable_time: number;
+}
+
+// One Map row in the admin status page's full listing - admin-wide (every
+// map, not just the viewer's), so no viewer-relative fields like is_owner.
+export interface MapSummaryOut {
+  id: number;
+  name: string;
+  owner_name: string;
+  visibility: MapVisibility;
+  created_at: string;
+  last_updated: string;
+  system_count: number;
+  active_users: number;
+}
+
+// One current (not yet pruned) shared Route, for the admin status page.
+export interface RouteSummaryOut {
+  id: number;
+  owner_name: string;
+  start_system_name: string;
+  end_system_name: string;
+  visibility: MapVisibility;
+  found: boolean;
+  last_viewed_at: string;
+  created_at: string;
+}
+
+export interface AppStatusOut {
+  sde: SdeStatusOut;
+  tasks: TaskHeartbeatOut[];
+  usage: UsageStatsOut;
+  wormhole_types: WormholeTypeCoverageOut;
+  maps: MapSummaryOut[];
+  routes: RouteSummaryOut[];
+}

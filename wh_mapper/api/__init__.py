@@ -12,11 +12,13 @@ from wh_mapper import __version__
 from wh_mapper.api import (
     connections,
     flags,
+    fleet,
     maps,
     regions,
     route,
     sharing,
     signatures,
+    status,
     systems,
     tracking,
     wormhole_types,
@@ -40,3 +42,5 @@ regions.setup(api)
 wormhole_types.setup(api)
 route.setup(api)
 flags.setup(api)
+fleet.setup(api)
+status.setup(api)

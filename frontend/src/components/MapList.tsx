@@ -1,12 +1,31 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createMap, deleteMap, listMaps, updateMap } from "../api/maps";
 import type { MapOut } from "../api/types";
 import { relativeTimeLabel } from "../lib/relativeTime";
+import { DataTable } from "./DataTable";
+import { dataTableColumnHelper } from "./dataTableFeatures";
 import { LoadingState } from "./LoadingState";
 
 interface Props {
   onOpen: (map: MapOut) => void;
 }
+
+function ActiveUsersBadge({ count }: { count: number }) {
+  if (count === 0) {
+    return null;
+  }
+  return (
+    <span
+      className="map-card-active-users"
+      title={`${count} active user${count === 1 ? "" : "s"}`}
+    >
+      <i className="fas fa-users" /> {count}
+    </span>
+  );
+}
+
+const mineColumnHelper = dataTableColumnHelper<MapOut>();
+const sharedColumnHelper = dataTableColumnHelper<MapOut>();
 
 export function MapList({ onOpen }: Props) {
   const [maps, setMaps] = useState<MapOut[] | null>(null);
@@ -15,7 +34,6 @@ export function MapList({ onOpen }: Props) {
   const [creating, setCreating] = useState(false);
   const [editingMapId, setEditingMapId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
 
   const refresh = () => {
     listMaps()
@@ -43,32 +61,35 @@ export function MapList({ onOpen }: Props) {
     }
   };
 
-  const startRename = (map: MapOut) => {
+  const startRename = useCallback((map: MapOut) => {
     setEditingMapId(map.id);
     setEditName(map.name);
-  };
+  }, []);
 
-  const cancelRename = () => {
+  const cancelRename = useCallback(() => {
     setEditingMapId(null);
     setEditName("");
-  };
+  }, []);
 
-  const saveRename = async (map: MapOut) => {
-    const trimmed = editName.trim();
-    if (!trimmed || trimmed === map.name) {
-      cancelRename();
-      return;
-    }
-    try {
-      await updateMap(map.id, { name: trimmed });
-      cancelRename();
-      refresh();
-    } catch (err) {
-      setError(String(err));
-    }
-  };
+  const saveRename = useCallback(
+    async (map: MapOut) => {
+      const trimmed = editName.trim();
+      if (!trimmed || trimmed === map.name) {
+        cancelRename();
+        return;
+      }
+      try {
+        await updateMap(map.id, { name: trimmed });
+        cancelRename();
+        refresh();
+      } catch (err) {
+        setError(String(err));
+      }
+    },
+    [editName, cancelRename],
+  );
 
-  const handleDelete = async (map: MapOut) => {
+  const handleDelete = useCallback(async (map: MapOut) => {
     const confirmed = window.confirm(
       `Delete "${map.name}"? This removes the whole map, including all its systems, signatures, and connections.`,
     );
@@ -81,7 +102,123 @@ export function MapList({ onOpen }: Props) {
     } catch (err) {
       setError(String(err));
     }
-  };
+  }, []);
+
+  // Depends on editingMapId/editName (via startRename/saveRename/
+  // cancelRename closing over them) so the rename cell's input re-renders
+  // with the right row in edit mode and the right in-progress text -
+  // StatusPage's module-scope columns can't close over per-render state the
+  // way these need to.
+  const mineColumns = useMemo(
+    () =>
+      mineColumnHelper.columns([
+        mineColumnHelper.accessor("name", {
+          header: "Name",
+          cell: (info) => {
+            const map = info.row.original;
+            return editingMapId === map.id ? (
+              <input
+                autoFocus
+                className="map-card-rename-input"
+                value={editName}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) => setEditName(event.target.value)}
+                // Blur saves (if the name actually changed - see
+                // saveRename) rather than discarding the edit, so clicking
+                // away commits it the same way Enter does - there's no
+                // separate Save button, so blur has to be the fallback
+                // "commit" gesture, not a silent cancel.
+                onBlur={() => saveRename(map)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.currentTarget.blur();
+                  } else if (event.key === "Escape") {
+                    cancelRename();
+                  }
+                }}
+              />
+            ) : (
+              <span className="map-card-name">{map.name}</span>
+            );
+          },
+        }),
+        mineColumnHelper.accessor("visibility", {
+          header: "Visibility",
+          cell: (info) => (
+            <span className={`badge badge-${info.getValue()}`}>
+              {info.getValue()}
+            </span>
+          ),
+        }),
+        mineColumnHelper.accessor("active_users", {
+          header: "Active",
+          cell: (info) => <ActiveUsersBadge count={info.getValue()} />,
+        }),
+        mineColumnHelper.accessor("last_updated", {
+          header: "Last updated",
+          cell: (info) => relativeTimeLabel(info.getValue()),
+        }),
+        mineColumnHelper.display({
+          id: "actions",
+          header: "",
+          enableSorting: false,
+          cell: (info) => {
+            const map = info.row.original;
+            return (
+              <div
+                className="map-card-actions"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => startRename(map)}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  className="link-button danger"
+                  onClick={() => handleDelete(map)}
+                >
+                  Delete
+                </button>
+              </div>
+            );
+          },
+        }),
+      ]),
+    [
+      editingMapId,
+      editName,
+      startRename,
+      cancelRename,
+      saveRename,
+      handleDelete,
+    ],
+  );
+
+  const sharedColumns = useMemo(
+    () =>
+      sharedColumnHelper.columns([
+        sharedColumnHelper.accessor("name", {
+          header: "Name",
+          cell: (info) => (
+            <span className="map-card-name">{info.getValue()}</span>
+          ),
+        }),
+        sharedColumnHelper.accessor("owner_name", { header: "Owner" }),
+        sharedColumnHelper.accessor("active_users", {
+          header: "Active",
+          cell: (info) => <ActiveUsersBadge count={info.getValue()} />,
+        }),
+        sharedColumnHelper.accessor("last_updated", {
+          header: "Last updated",
+          cell: (info) => relativeTimeLabel(info.getValue()),
+        }),
+      ]),
+    [],
+  );
 
   if (error) {
     return <p className="error">Failed to load maps: {error}</p>;
@@ -91,10 +228,8 @@ export function MapList({ onOpen }: Props) {
     return <LoadingState label="Loading maps…" />;
   }
 
-  const query = searchQuery.trim().toLowerCase();
-  const matches = (m: MapOut) => !query || m.name.toLowerCase().includes(query);
-  const mine = maps.filter((m) => m.is_owner && matches(m));
-  const shared = maps.filter((m) => !m.is_owner && matches(m));
+  const mine = maps.filter((m) => m.is_owner);
+  const shared = maps.filter((m) => !m.is_owner);
 
   return (
     <div className="map-list">
@@ -110,132 +245,28 @@ export function MapList({ onOpen }: Props) {
         </button>
       </form>
 
-      <input
-        type="text"
-        className="map-search-input"
-        placeholder="Search maps…"
-        value={searchQuery}
-        onChange={(event) => setSearchQuery(event.target.value)}
-      />
-
       <section>
         <h2>Your maps</h2>
-        {mine.length === 0 ? (
-          <p className="dim">
-            {query
-              ? "No maps match your search."
-              : "No maps yet — create one above."}
-          </p>
-        ) : (
-          <ul className="map-cards">
-            {mine.map((m) => (
-              <li
-                key={m.id}
-                className="map-card"
-                onClick={() => editingMapId !== m.id && onOpen(m)}
-              >
-                <div className="map-card-info">
-                  {editingMapId === m.id ? (
-                    <input
-                      autoFocus
-                      className="map-card-rename-input"
-                      value={editName}
-                      onClick={(event) => event.stopPropagation()}
-                      onChange={(event) => setEditName(event.target.value)}
-                      // Blur saves (if the name actually changed - see
-                      // saveRename) rather than discarding the edit, so
-                      // clicking away commits it the same way Enter does -
-                      // there's no separate Save button, so blur has to be
-                      // the fallback "commit" gesture, not a silent cancel.
-                      onBlur={() => saveRename(m)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.currentTarget.blur();
-                        } else if (event.key === "Escape") {
-                          cancelRename();
-                        }
-                      }}
-                    />
-                  ) : (
-                    <span className="map-card-name">{m.name}</span>
-                  )}
-                  <span className={`badge badge-${m.visibility}`}>
-                    {m.visibility}
-                  </span>
-                  {m.active_users > 0 && (
-                    <span
-                      className="map-card-active-users"
-                      title={`${m.active_users} active user${m.active_users === 1 ? "" : "s"}`}
-                    >
-                      <i className="fas fa-users" /> {m.active_users}
-                    </span>
-                  )}
-                  <span
-                    className="map-card-updated"
-                    title={new Date(m.last_updated).toLocaleString()}
-                  >
-                    Updated {relativeTimeLabel(m.last_updated)}
-                  </span>
-                </div>
-                <div
-                  className="map-card-actions"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => startRename(m)}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    className="link-button danger"
-                    onClick={() => handleDelete(m)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <DataTable
+          data={mine}
+          columns={mineColumns}
+          getRowId={(map) => String(map.id)}
+          onRowClick={(map) => editingMapId !== map.id && onOpen(map)}
+          searchPlaceholder="Search your maps…"
+          emptyMessage="No maps yet — create one above."
+        />
       </section>
 
       <section>
         <h2>Shared with you</h2>
-        {shared.length === 0 ? (
-          <p className="dim">
-            {query
-              ? "No maps match your search."
-              : "Nothing shared with you yet."}
-          </p>
-        ) : (
-          <ul className="map-cards">
-            {shared.map((m) => (
-              <li key={m.id} className="map-card" onClick={() => onOpen(m)}>
-                <div className="map-card-info">
-                  <span className="map-card-name">{m.name}</span>
-                  {m.active_users > 0 && (
-                    <span
-                      className="map-card-active-users"
-                      title={`${m.active_users} active user${m.active_users === 1 ? "" : "s"}`}
-                    >
-                      <i className="fas fa-users" /> {m.active_users}
-                    </span>
-                  )}
-                  <span
-                    className="map-card-updated"
-                    title={new Date(m.last_updated).toLocaleString()}
-                  >
-                    Updated {relativeTimeLabel(m.last_updated)}
-                  </span>
-                </div>
-                <span className="map-card-owner">by {m.owner_name}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <DataTable
+          data={shared}
+          columns={sharedColumns}
+          getRowId={(map) => String(map.id)}
+          onRowClick={onOpen}
+          searchPlaceholder="Search shared maps…"
+          emptyMessage="Nothing shared with you yet."
+        />
       </section>
     </div>
   );

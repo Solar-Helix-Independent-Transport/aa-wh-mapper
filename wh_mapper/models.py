@@ -75,6 +75,10 @@ class Map(models.Model):
         permissions = (
             ("basic_access", "Can access this app and create maps"),
             ("admin_access", "Can manage and delete any map"),
+            (
+                "backseat_fc",
+                "Can operate fleet tracking on behalf of another character",
+            ),
         )
         ordering = ["name"]
 
@@ -192,7 +196,10 @@ class WormholeType(models.Model):
     # across multiple distinct ItemTypes that differ only in
     # shattered-wormhole target-distribution weighting.
     code = models.CharField(max_length=10, db_index=True)
-    # Not derivable from the SDE (no dogma attribute for it) - admin-editable only.
+    # No SDE dogma attribute for this - wh_mapper_derive_wormhole_types sets
+    # it from a hardcoded code -> class table instead (CODE_TO_CLASS there).
+    # Still admin-editable for any code that table doesn't recognize (a K162
+    # has no single destination class, and new codes may lag the table).
     leads_to_class = models.IntegerField(null=True, blank=True, default=None)
     max_mass = models.FloatField(null=True, blank=True, default=None)
     max_jump_mass = models.FloatField(null=True, blank=True, default=None)
@@ -356,6 +363,16 @@ class WormholeConnection(models.Model):
     mass_status = models.CharField(
         max_length=10, choices=MassStatus.choices, default=MassStatus.UNKNOWN
     )
+    # Cumulative mass (kg) crossed by tracked fleet members - never
+    # decrements, so identifying this connection's WormholeType *after*
+    # crossings already happened needs no backfill (mass_remaining is
+    # always max_mass - mass_crossed, computed on read - see
+    # wh_mapper.api.helpers.connection_effective_mass_status). This is the
+    # manual fallback mass_status stays untouched by crossings; it's only
+    # ever hand-set while the wormhole type is unidentified, same role
+    # life_status plays for time-based decay. See the fleet-mass-tracking
+    # wayfinder map's ticket 06.
+    mass_crossed = models.FloatField(default=0)
     ship_size_limit = models.CharField(
         max_length=10, choices=ShipSize.choices, default=ShipSize.UNKNOWN
     )
@@ -442,6 +459,92 @@ class MapPresence(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} on {self.map.name}"
+
+
+class FleetTrackingSession(models.Model):
+    """A live, backseat-operated tracking session against one in-game EVE
+    Fleet, polled off its fleet boss's own ESI token (see
+    wh_mapper.tasks.poll_fleet_session) - the fleet-mass-tracking wayfinder
+    map's counterpart to TrackedCharacter, but for a whole fleet rather than
+    one owned character, and driven by whoever holds the `backseat_fc`
+    permission rather than the character's own owner.
+
+    `fc_character` is unique: per ticket 07, there's never more than one
+    active session per character at a time (a second operator attaches as a
+    FleetTrackingWatcher instead - see that model), and a stopped session's
+    row is deleted immediately rather than kept around, so "has a row at
+    all" and "is active" are the same thing.
+    """
+
+    fc_character = models.OneToOneField(EveCharacter, on_delete=models.CASCADE)
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    fleet_id = models.BigIntegerField()
+    started_at = models.DateTimeField(auto_now_add=True)
+    last_polled_at = models.DateTimeField(null=True, blank=True, default=None)
+    # Consecutive failed fleet-members polls (see
+    # constants.FLEET_SESSION_FAILURE_THRESHOLD) - reset to 0 on any
+    # successful poll, tolerating one transient ESI blip before auto-stopping.
+    consecutive_failures = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+
+    def __str__(self) -> str:
+        return f"fleet tracking for {self.fc_character} (fleet {self.fleet_id})"
+
+
+class FleetTrackingWatcher(models.Model):
+    """A second backseat-permitted operator attached to an already-active
+    FleetTrackingSession rather than starting a duplicate of their own - see
+    ticket 07. Only the session's own `started_by` can stop it; a watcher
+    can only detach."""
+
+    session = models.ForeignKey(
+        FleetTrackingSession, on_delete=models.CASCADE, related_name="watchers"
+    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    attached_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+        unique_together = ("session", "user")
+
+    def __str__(self) -> str:
+        return f"{self.user} watching {self.session}"
+
+
+class FleetMemberState(models.Model):
+    """One fleet member's last-known ship/location within a
+    FleetTrackingSession - the per-member state
+    wh_mapper.tasks.poll_fleet_session diffs each poll against to detect a
+    jump, since fleet members generally have no TrackedCharacter row of
+    their own to hold this (see ticket 01)."""
+
+    session = models.ForeignKey(
+        FleetTrackingSession, on_delete=models.CASCADE, related_name="members"
+    )
+    character_id = models.PositiveIntegerField()
+    character_name = models.CharField(max_length=100, blank=True, default="")
+    ship_type_id = models.PositiveIntegerField(null=True, blank=True)
+    last_solar_system = models.ForeignKey(
+        SolarSystem, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+        unique_together = ("session", "character_id")
+
+    def __str__(self) -> str:
+        return f"{self.character_name or self.character_id} in {self.session}"
 
 
 class SystemSovereignty(models.Model):
@@ -629,3 +732,34 @@ class MapContribution(models.Model):
 
     def __str__(self) -> str:
         return f"{self.verb} on {self.connection_id} by {self.character or self.user}"
+
+
+class TaskHeartbeat(models.Model):
+    """A last-run marker for one of wh_mapper's periodic Celery tasks,
+    recorded by the task itself on every run (see
+    wh_mapper.tasks.record_task_heartbeat) - surfaced on the admin status
+    page so a stopped/misconfigured beat schedule or a silently-dead worker
+    shows up as "hasn't run since X" instead of only being noticed once a
+    user complains that maps aren't updating.
+
+    Not django-celery-beat's PeriodicTask.last_run_at - this project
+    schedules tasks via plain CELERYBEAT_SCHEDULE (see README), not
+    django-celery-beat, so there's no such row to read. This is scoped to
+    exactly the periodic tasks wh_mapper itself cares about.
+    """
+
+    task_name = models.CharField(max_length=100, primary_key=True)
+    last_run_at = models.DateTimeField()
+    last_success = models.BooleanField(default=True)
+    # Truncated exception text from the most recent failed run - blank
+    # whenever last_success is True. Not a full traceback: this is a
+    # glance-at-a-dashboard summary, not a log viewer.
+    last_error = models.TextField(blank=True, default="")
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+
+    def __str__(self) -> str:
+        return f"{self.task_name} @ {self.last_run_at}"

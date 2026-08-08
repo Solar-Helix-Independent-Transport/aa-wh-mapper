@@ -8,9 +8,12 @@ import {
   UNKNOWN_STABLE_MAX_HOURS,
 } from "../constants";
 
-// Common community convention for EVE's wormhole_class_id; not verified against
-// a real imported SDE in this workspace (see docs/wh-mapper-plan.md). Treat as
-// a display hint, not authoritative game data.
+// Common community convention for EVE's wormhole_class_id; cross-checked
+// against zKillboard's setup/wh_effects.csv and setup/sig2class.csv (SDE-
+// derived, commit fb8ce9d) and, for 14-18, against ESI
+// (universe/systems/{31000001,31000002,31000003,31000004,31000006}) to
+// resolve their region names - not a real imported SDE in this workspace
+// though, so still treat as a display hint, not authoritative game data.
 // Shared by ConnectionDetailsDialog and SystemDetailsDialog's connections
 // list - kept here (a non-component module) rather than in either dialog
 // file, since exporting a plain constant from a component file breaks fast
@@ -33,6 +36,15 @@ const CLASS_LABELS: Record<number, string> = {
   9: "Null-sec",
   12: "Thera",
   13: "C13",
+  // The five one-system Drifter regions (all in region K-R00033) - each has
+  // its own class ID rather than sharing one, since they're distinguished by
+  // a unique system-wide effect (Red Giant/Cataclysmic Variable/Magnetar/
+  // Pulsar/Wolf-Rayet Star respectively, per wh_effects.csv).
+  14: "Sentinel",
+  15: "Barbican",
+  16: "Vidette",
+  17: "Conflux",
+  18: "Redoubt",
 };
 
 export function wormholeClassLabel(classId: number | null): string | null {

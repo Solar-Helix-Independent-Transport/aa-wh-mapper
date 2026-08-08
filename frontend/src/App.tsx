@@ -15,6 +15,7 @@ import { MapList } from "./components/MapList";
 import { MapView } from "./components/MapView";
 import { RouteFinder } from "./components/RouteFinder";
 import { SharedRoute } from "./components/SharedRoute";
+import { StatusPage } from "./components/StatusPage";
 import { TrackedCharactersPanel } from "./components/TrackedCharactersPanel";
 
 function MapListRoute() {
@@ -61,6 +62,13 @@ function AppShell() {
             <Link to="/route" className="nav-link">
               Navigate
             </Link>
+            {/* Not permission-gated here - the page itself renders a
+                plain "you don't have access" message for anyone without
+                admin_access (see StatusPage), same as visiting a URL you
+                can't use rather than the link not existing. */}
+            <Link to="/status" className="nav-link">
+              Status
+            </Link>
             <button type="button" onClick={() => setShowTracking(true)}>
               Tracked characters
             </button>
@@ -82,6 +90,7 @@ function AppShell() {
           <Route path="/maps/:mapId" element={<MapViewRoute />} />
           <Route path="/route" element={<RouteFinder />} />
           <Route path="/route/shared/:routeId" element={<SharedRouteRoute />} />
+          <Route path="/status" element={<StatusPage />} />
         </Routes>
       </main>
     </div>

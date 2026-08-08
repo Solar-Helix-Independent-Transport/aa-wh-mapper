@@ -176,6 +176,10 @@ CELERYBEAT_SCHEDULE["wh_mapper_prune_stale_map_presence"] = {
         minute="*/2"
     ),  # catches a connection whose disconnect() never fired (e.g. a worker crash)
 }
+CELERYBEAT_SCHEDULE["wh_mapper_prune_stale_routes"] = {
+    "task": "wh_mapper.tasks.prune_stale_routes",
+    "schedule": crontab(minute="30"),  # deletes any shared Route unviewed for 48h
+}
 ```
 
 ### 5. Grant permissions

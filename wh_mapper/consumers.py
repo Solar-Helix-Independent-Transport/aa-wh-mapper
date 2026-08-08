@@ -25,6 +25,12 @@ def _route_group_name(route_id: int) -> str:
     return f"wh_mapper_route_{route_id}"
 
 
+def _fleet_group_name(session_id: int) -> str:
+    """Channel layer group name for a given FleetTrackingSession"""
+
+    return f"wh_mapper_fleet_{session_id}"
+
+
 class MapConsumer(AsyncJsonWebsocketConsumer):
     """Broadcasts live changes for a single Map to every connected viewer"""
 
@@ -178,3 +184,47 @@ class RouteConsumer(AsyncJsonWebsocketConsumer):
 
     async def user_can_view_route(self, user, route_id: int) -> bool:
         return await database_sync_to_async(self.user_can_view_route_sync)(user, route_id)
+
+
+class FleetSessionConsumer(AsyncJsonWebsocketConsumer):
+    """Broadcasts live updates for a single FleetTrackingSession to every
+    connected viewer - see wh_mapper.tasks.poll_fleet_session and the
+    fleet-mass-tracking wayfinder map's ticket 12. No presence tracking
+    (unlike MapConsumer) - a session's own ESI polling is gated by whether
+    it's active, not by whether anyone's watching (ticket 08)."""
+
+    async def connect(self):
+        self.session_id = int(self.scope["url_route"]["kwargs"]["session_id"])
+        self.group_name = _fleet_group_name(self.session_id)
+
+        user = self.scope.get("user")
+        if user is None or isinstance(user, AnonymousUser) or not user.is_authenticated:
+            await self.accept()
+            await self.close(code=WS_CLOSE_UNAUTHENTICATED)
+            return
+
+        if not await database_sync_to_async(self.user_can_view_session_sync)(user):
+            await self.accept()
+            await self.close(code=WS_CLOSE_FORBIDDEN)
+            return
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def fleet_event(self, event):
+        """Handler for messages sent via group_send(type='fleet.event', ...)"""
+
+        await self.send_json(event["payload"])
+
+    @staticmethod
+    def user_can_view_session_sync(user) -> bool:
+        """Gated purely by the `backseat_fc` permission (ticket 11) - no
+        further per-session ACL, deliberately (fleet composition/position
+        is more sensitive than a shared route, but any backseat-permitted
+        user can view any active session, not just their own)."""
+
+        return user.has_perm("wh_mapper.backseat_fc")

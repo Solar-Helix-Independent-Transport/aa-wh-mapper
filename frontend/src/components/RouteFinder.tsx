@@ -12,6 +12,7 @@ import {
 } from "../constants";
 import { useResizablePanel } from "../hooks/useResizablePanel";
 import { useSearch } from "../hooks/useSearch";
+import { FleetPanel } from "./FleetPanel";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { RouteAlternateBanner } from "./RouteAlternateBanner";
 import { RouteContributors } from "./RouteContributors";
@@ -34,6 +35,7 @@ export function RouteFinder() {
   const [sharing, setSharing] = useState(false);
   const [selectedSystemId, setSelectedSystemId] = useState<number | null>(null);
   const [showingAlternate, setShowingAlternate] = useState(false);
+  const [showFleetPanel, setShowFleetPanel] = useState(false);
 
   const searchSystems = useCallback(
     (value: string) =>
@@ -171,9 +173,19 @@ export function RouteFinder() {
         >
           {loading ? "Finding…" : "Find route"}
         </button>
+
+        <button
+          type="button"
+          className="fleet-panel-toggle"
+          onClick={() => setShowFleetPanel((current) => !current)}
+        >
+          {showFleetPanel ? "Hide fleet tracking" : "Fleet tracking"}
+        </button>
       </div>
 
       {error && <p className="error route-toolbar-error">{error}</p>}
+
+      {showFleetPanel && <FleetPanel />}
 
       {result?.found && result.alternate && (
         <RouteAlternateBanner

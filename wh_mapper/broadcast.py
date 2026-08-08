@@ -11,8 +11,23 @@ from channels.layers import get_channel_layer
 from django.core.serializers.json import DjangoJSONEncoder
 
 # AA WH Mapper App
-from wh_mapper.consumers import _group_name, _route_group_name
+from wh_mapper.consumers import _fleet_group_name, _group_name, _route_group_name
 from wh_mapper.models import MapPresence
+
+
+def broadcast_fleet_event(session_id: int, event: str, data: dict) -> None:
+    """Fan out a fleet-tracking session update to every client connected to
+    that session - see wh_mapper.consumers.FleetSessionConsumer and the
+    fleet-mass-tracking wayfinder map's ticket 12."""
+
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+
+    async_to_sync(channel_layer.group_send)(
+        _fleet_group_name(session_id),
+        {"type": "fleet.event", "payload": {"event": event, "data": _json_safe(data)}},
+    )
 
 
 def broadcast_route_event(route_id: int, event: str, data: dict) -> None:

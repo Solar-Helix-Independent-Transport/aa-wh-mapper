@@ -16,5 +16,8 @@ esi = ESIClientProvider(
         "GetCharactersCharacterIdOnline",
         # Public, no token needed - see wh_mapper.tasks.refresh_system_sovereignty.
         "GetSovereigntySystems",
+        # Fleet composition/location polling - see wh_mapper.tasks.poll_fleet_session.
+        "GetCharactersCharacterIdFleet",
+        "GetFleetsFleetIdMembers",
     ],
 )

@@ -7,6 +7,9 @@ from django.template.response import TemplateResponse
 
 # AA WH Mapper App
 from wh_mapper.models import (
+    FleetMemberState,
+    FleetTrackingSession,
+    FleetTrackingWatcher,
     Map,
     MapContribution,
     MapPresence,
@@ -14,6 +17,7 @@ from wh_mapper.models import (
     MapShareGroup,
     MapSystem,
     Signature,
+    TaskHeartbeat,
     TrackedCharacter,
     WormholeConnection,
     WormholeType,
@@ -110,6 +114,27 @@ class TrackedCharacterAdmin(admin.ModelAdmin):
     search_fields = ("character__character_name",)
 
 
+@admin.register(TaskHeartbeat)
+class TaskHeartbeatAdmin(admin.ModelAdmin):
+    """Admin for TaskHeartbeat - rows here are managed exclusively by
+    wh_mapper.tasks.record_task_heartbeat, one per periodic task, so
+    there's nothing to add/edit/delete by hand. Same read-only page/status
+    endpoint (see wh_mapper.api.status) both read this table - this view is
+    just a raw fallback for spot-checking it directly."""
+
+    list_display = ("task_name", "last_run_at", "last_success")
+    list_filter = ("last_success",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(MapPresence)
 class MapPresenceAdmin(admin.ModelAdmin):
     """Admin for MapPresence.
@@ -170,11 +195,43 @@ class MapPresenceAdmin(admin.ModelAdmin):
         )
 
 
+class FleetTrackingWatcherInline(admin.TabularInline):
+    """Inline for FleetTrackingWatcher"""
+
+    model = FleetTrackingWatcher
+    extra = 0
+
+
+class FleetMemberStateInline(admin.TabularInline):
+    """Inline for FleetMemberState"""
+
+    model = FleetMemberState
+    extra = 0
+
+
+@admin.register(FleetTrackingSession)
+class FleetTrackingSessionAdmin(admin.ModelAdmin):
+    """Admin for FleetTrackingSession"""
+
+    list_display = (
+        "fc_character",
+        "started_by",
+        "fleet_id",
+        "consecutive_failures",
+        "started_at",
+        "last_polled_at",
+    )
+    search_fields = ("fc_character__character_name", "started_by__username")
+    inlines = (FleetTrackingWatcherInline, FleetMemberStateInline)
+
+
 @admin.register(WormholeType)
 class WormholeTypeAdmin(admin.ModelAdmin):
-    """`code`/`max_*` are derived by `wh_mapper_derive_wormhole_types`;
-    `leads_to_class` isn't in the SDE at all and is left here for an admin
-    to fill in manually.
+    """`code`/`leads_to_class`/`max_*` are all derived by
+    `wh_mapper_derive_wormhole_types` - `leads_to_class` isn't in the SDE at
+    all, so that command sources it from a hardcoded code table instead
+    (CODE_TO_CLASS), but it's left editable here for any code that table
+    doesn't recognize.
     """
 
     list_display = ("code", "leads_to_class", "max_mass", "max_jump_mass", "max_stable_time")

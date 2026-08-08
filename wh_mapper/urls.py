@@ -18,6 +18,8 @@ urlpatterns = [
     # Same reasoning, for the route-planner's own client-side routes.
     path("route/", views.index, name="route_finder"),
     path("route/shared/<int:route_id>/", views.index, name="shared_route_detail"),
+    # Same reasoning, for the admin status page.
+    path("status/", views.index, name="status"),
     path("track/add/", views.add_tracked_character, name="add_tracked_character"),
     path("api/", api.urls),
 ]

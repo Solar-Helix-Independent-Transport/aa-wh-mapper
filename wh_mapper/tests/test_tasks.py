@@ -459,7 +459,7 @@ class TestPollTrackedCharacterLocations(TestCase):
             poll_tracked_character_locations()
 
         mock_apply.assert_called_once_with(args=[420001, [online_tracked.id]])
-        mock_reschedule.assert_called_once_with(countdown=10)
+        mock_reschedule.assert_called_once_with(countdown=6)
 
     def test_no_presence_dispatches_nothing(self):
         TrackedCharacter.objects.create(

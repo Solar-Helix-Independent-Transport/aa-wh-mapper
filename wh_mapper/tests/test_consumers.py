@@ -16,8 +16,12 @@ from django.test import Client, TransactionTestCase
 from django.utils import timezone
 
 # AA WH Mapper App
-from wh_mapper.broadcast import broadcast_map_event, send_map_event_to_user
-from wh_mapper.models import Map, MapPresence
+from wh_mapper.broadcast import (
+    broadcast_fleet_event,
+    broadcast_map_event,
+    send_map_event_to_user,
+)
+from wh_mapper.models import FleetTrackingSession, Map, MapPresence
 from wh_mapper.routing import websocket_urlpatterns
 from wh_mapper.tests.factories import make_user_with_character
 
@@ -258,6 +262,101 @@ class TestMapConsumer(TransactionTestCase):
         owner = make_user_with_character("consumer_no_access", 300004, perms=())
         map_obj = Map.objects.create(name="No Access Test Map", owner=owner)
         return map_obj.id
+
+    @staticmethod
+    def _session_cookie_for(username: str) -> str:
+        client = Client()
+        assert client.login(username=username, password="test-password")
+        return client.cookies["sessionid"].value
+
+
+class TestFleetSessionConsumer(TransactionTestCase):
+    """TestFleetSessionConsumer - gated purely by the backseat_fc
+    permission (ticket 11), unlike MapConsumer's per-map visibility."""
+
+    def _run(self, coro):
+        return asyncio.run(coro)
+
+    def test_anonymous_connection_rejected(self):
+        self._run(self._anonymous_connection_rejected())
+
+    async def _anonymous_connection_rejected(self):
+        session_id = await database_sync_to_async(self._make_session)()
+
+        app = AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+        communicator = WebsocketCommunicator(app, f"/ws/wh-mapper/fleets/{session_id}/")
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        close_message = await communicator.receive_output(timeout=1)
+        self.assertEqual(close_message["type"], "websocket.close")
+        self.assertEqual(close_message["code"], 4401)
+
+    def test_without_backseat_permission_rejected(self):
+        self._run(self._without_backseat_permission_rejected())
+
+    async def _without_backseat_permission_rejected(self):
+        session_id = await database_sync_to_async(self._make_session)()
+        await database_sync_to_async(
+            lambda: make_user_with_character("fleet_consumer_noperm", 300101)
+        )()
+        session_cookie = await database_sync_to_async(self._session_cookie_for)(
+            "fleet_consumer_noperm"
+        )
+
+        app = AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+        communicator = WebsocketCommunicator(
+            app,
+            f"/ws/wh-mapper/fleets/{session_id}/",
+            headers=[(b"cookie", f"sessionid={session_cookie}".encode())],
+        )
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        close_message = await communicator.receive_output(timeout=1)
+        self.assertEqual(close_message["type"], "websocket.close")
+        self.assertEqual(close_message["code"], 4403)
+
+    def test_backseat_permitted_connects_and_receives_broadcast(self):
+        self._run(self._backseat_permitted_connects_and_receives_broadcast())
+
+    async def _backseat_permitted_connects_and_receives_broadcast(self):
+        session_id = await database_sync_to_async(self._make_session)()
+        await database_sync_to_async(
+            lambda: make_user_with_character(
+                "fleet_consumer_backseat",
+                300102,
+                perms=("wh_mapper.basic_access", "wh_mapper.backseat_fc"),
+            )
+        )()
+        session_cookie = await database_sync_to_async(self._session_cookie_for)(
+            "fleet_consumer_backseat"
+        )
+
+        app = AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+        communicator = WebsocketCommunicator(
+            app,
+            f"/ws/wh-mapper/fleets/{session_id}/",
+            headers=[(b"cookie", f"sessionid={session_cookie}".encode())],
+        )
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        await database_sync_to_async(broadcast_fleet_event)(
+            session_id, "fleet.updated", {"id": session_id}
+        )
+        message = await communicator.receive_json_from(timeout=5)
+        self.assertEqual(message, {"event": "fleet.updated", "data": {"id": session_id}})
+
+        await communicator.disconnect()
+
+    @staticmethod
+    def _make_session() -> int:
+        owner = make_user_with_character("fleet_consumer_owner", 300100)
+        session = FleetTrackingSession.objects.create(
+            fc_character=owner.profile.main_character, started_by=owner, fleet_id=1
+        )
+        return session.id
 
     @staticmethod
     def _session_cookie_for(username: str) -> str:

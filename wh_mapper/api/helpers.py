@@ -5,25 +5,30 @@ import logging
 
 # Third Party
 # Django EvE SDE
-from eve_sde.models import Region, SolarSystem, Stargate
+from eve_sde.models import EveSDE, ItemType, Region, SolarSystem, Stargate
 
 # Django
 from django.db import IntegrityError
-from django.db.models import Max, Min, Q
+from django.db.models import Count, F, Max, Min, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 # Alliance Auth
-from allianceauth.eveonline.models import EveAllianceInfo, EveFactionInfo
+from allianceauth.eveonline.models import EveAllianceInfo, EveCharacter, EveFactionInfo
 
 # AA WH Mapper App
 from wh_mapper.broadcast import broadcast_map_event, revoke_map_access
 from wh_mapper.constants import (
     CONNECTION_TIME_STATUS_GREEN_THRESHOLD,
     CONNECTION_TIME_STATUS_ORANGE_THRESHOLD,
+    DRIFTER_SYSTEM_CLASS,
     HIGH_SEC_SECURITY_THRESHOLD,
     LIFE_STATUS_HOUR_BOUNDS,
+    MASS_STATUS_CRITICAL_FRACTION,
+    MASS_STATUS_FRESH_FRACTION,
+    TASK_EXPECTED_INTERVAL_SECONDS,
     UNKNOWN_STABLE_MAX_HOURS,
+    WORMHOLE_REGION_LETTER_TO_CLASS,
     WORMHOLE_SPACE_ID_MAX,
     WORMHOLE_SPACE_ID_MIN,
 )
@@ -32,10 +37,13 @@ from wh_mapper.models import (
     MapContribution,
     MapPresence,
     MapSystem,
+    Route,
     Signature,
     SystemSovereignty,
+    TaskHeartbeat,
     TrackedCharacter,
     WormholeConnection,
+    WormholeType,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,6 +57,32 @@ def require_basic_access(request):
     """
 
     if not request.user.has_perm("wh_mapper.basic_access"):
+        return 403, "Permission denied"
+    return None
+
+
+def require_admin_access(request):
+    """The `wh_mapper.admin_access` gate for endpoints meant for map
+    admins only (the app status page) - same (status, message)-or-None
+    shape as require_basic_access. `admin_access` already gates
+    can_edit_map/map_visible_to_user for "manage any map"; this is the
+    same permission, just for something that isn't map-scoped at all.
+    """
+
+    if not request.user.has_perm("wh_mapper.admin_access"):
+        return 403, "Permission denied"
+    return None
+
+
+def require_backseat_fc(request):
+    """The `wh_mapper.backseat_fc` gate every fleet-tracking endpoint needs
+    first - same (status, message) shape as require_basic_access, so both
+    compose the same way in a caller. See the fleet-mass-tracking wayfinder
+    map's tickets 02/11: this is deliberately a separate, narrower
+    permission than basic_access - fleet composition/position is treated as
+    more sensitive than ordinary map access."""
+
+    if not request.user.has_perm("wh_mapper.backseat_fc"):
         return 403, "Permission denied"
     return None
 
@@ -210,6 +244,32 @@ def space_type_label(solar_system) -> str:
     return "Null Sec"
 
 
+def wormhole_class_id(solar_system) -> int | None:
+    """A J-space system's wormhole class (1-6/12-18) - see
+    WORMHOLE_REGION_LETTER_TO_CLASS's comment for why this doesn't just
+    trust `wormhole_class_id_raw` (CCP's current SDE export leaves it null
+    for nearly every real wormhole system). Falls back, in order: the raw
+    SDE field when a future SDE snapshot does carry it; the hardcoded
+    Drifter lookup (their shared region name can't be told apart by letter
+    alone); the region-name-letter convention for everything else. None for
+    k-space/abyssal (space_type_label already identifies those without this
+    field) or for a J-space system whose region name is somehow missing.
+    """
+
+    if solar_system.wormhole_class_id_raw is not None:
+        return solar_system.wormhole_class_id_raw
+    if solar_system.id in DRIFTER_SYSTEM_CLASS:
+        return DRIFTER_SYSTEM_CLASS[solar_system.id]
+    if not solar_system.is_wh_space:
+        return None
+
+    constellation = solar_system.constellation
+    region = constellation.region if constellation else None
+    if not region or not region.name:
+        return None
+    return WORMHOLE_REGION_LETTER_TO_CLASS.get(region.name[0])
+
+
 def solar_system_to_schema(solar_system, owner=None) -> dict:
     """Serialize an eve_sde.SolarSystem to SolarSystemOut shape.
 
@@ -225,7 +285,7 @@ def solar_system_to_schema(solar_system, owner=None) -> dict:
         "id": solar_system.id,
         "name": solar_system.name,
         "security_status": solar_system.security_status,
-        "wormhole_class_id": solar_system.wormhole_class_id_raw,
+        "wormhole_class_id": wormhole_class_id(solar_system),
         "visual_effect": solar_system.visual_effect,
         "constellation_name": constellation.name if constellation else None,
         "region_name": constellation.region.name if constellation else None,
@@ -526,6 +586,81 @@ def connection_effective_life_status(connection, now=None) -> str:
     return life_status_for_remaining_hours(remaining)
 
 
+def mass_status_for_remaining_fraction(fraction: float) -> str:
+    """Map a WormholeConnection's remaining-mass fraction (0-1) to a
+    MassStatus bucket - fresh above MASS_STATUS_FRESH_FRACTION, critical at
+    or below MASS_STATUS_CRITICAL_FRACTION, reduced in between. Matches the
+    convention EVE's own client and community mapping tools already use -
+    see the fleet-mass-tracking wayfinder map's ticket 06."""
+
+    if fraction <= MASS_STATUS_CRITICAL_FRACTION:
+        return WormholeConnection.MassStatus.CRITICAL
+    if fraction <= MASS_STATUS_FRESH_FRACTION:
+        return WormholeConnection.MassStatus.REDUCED
+    return WormholeConnection.MassStatus.FRESH
+
+
+def connection_effective_mass_status(connection) -> str:
+    """The connection's current mass_status bucket, computed live from
+    mass_crossed against its WormholeType's max_mass when known - mirrors
+    connection_effective_life_status's fallback shape. Falls back to the
+    stored (manual) mass_status when the wormhole type is unidentified, or
+    identified but missing max_mass - see ticket 06."""
+
+    wormhole_type = connection_wormhole_type(connection)
+    if wormhole_type is None or wormhole_type.max_mass is None or wormhole_type.max_mass <= 0:
+        return connection.mass_status
+
+    remaining_fraction = max(0.0, (wormhole_type.max_mass - connection.mass_crossed) / wormhole_type.max_mass)
+    return mass_status_for_remaining_fraction(remaining_fraction)
+
+
+def record_mass_crossing(connection: WormholeConnection, mass_kg: float) -> bool:
+    """Add `mass_kg` to a WormholeConnection's cumulative mass_crossed (via
+    an F() update, so concurrent crossings on the same connection can't
+    clobber each other) and report whether its *effective* mass_status
+    bucket changed as a result - callers use this to decide whether to
+    broadcast. See ticket 06/08."""
+
+    before = connection_effective_mass_status(connection)
+    WormholeConnection.objects.filter(pk=connection.pk).update(
+        mass_crossed=F("mass_crossed") + mass_kg
+    )
+    connection.refresh_from_db(fields=["mass_crossed"])
+    return connection_effective_mass_status(connection) != before
+
+
+def ship_mass_kg(ship_type_id: int) -> float | None:
+    """A ship hull's base mass (kg) from the SDE, or None if the type isn't
+    known locally. ESI exposes no live fitted/cargo mass, so this base hull
+    mass is the accepted approximation fleet mass-tracking deducts by - see
+    the fleet-mass-tracking wayfinder map's destination-naming notes."""
+
+    try:
+        return ItemType.objects.get(pk=ship_type_id).mass
+    except ItemType.DoesNotExist:
+        return None
+
+
+def resolve_fleet_character_name(character_id: int) -> str:
+    """A fleet member's character name, resolving+caching a local
+    EveCharacter row via ESI if this app has never seen them before (a
+    regular fleet member, unlike the FC, has no reason to already have one) -
+    mirrors EveAllianceInfo.objects.get_or_create_esi's
+    lookup-then-create-on-miss shape used elsewhere in this codebase (see
+    wh_mapper.tasks.refresh_system_sovereignty)."""
+
+    character = EveCharacter.objects.get_character_by_id(character_id)
+    if character is not None:
+        return character.character_name
+
+    try:
+        return EveCharacter.objects.create_character(character_id).character_name
+    except Exception:
+        logger.warning("Could not resolve character name for %s", character_id)
+        return str(character_id)
+
+
 def connection_time_status(connection) -> str:
     """A traffic-light summary of how much *time* (not mass) a wormhole has
     left: green (plenty of time left), orange (time running out), red
@@ -583,7 +718,11 @@ def connection_to_schema(connection) -> dict:
         ),
         "life_status": str(connection.life_status),
         "life_status_marked_at": connection.life_status_marked_at,
-        "mass_status": str(connection.mass_status),
+        # Computed live from mass_crossed (see connection_effective_mass_status),
+        # not the raw stored field - mirrors connection_time_status already
+        # being a derived value alongside the raw life_status above. See the
+        # fleet-mass-tracking wayfinder map's ticket 06.
+        "mass_status": str(connection_effective_mass_status(connection)),
         "ship_size_limit": str(connection.ship_size_limit),
         "time_status": connection_time_status(connection),
         "created_by_id": connection.created_by_id,
@@ -1244,4 +1383,288 @@ def trackable_character_to_schema(character, tracked=None) -> dict:
         "is_online": False,
         "last_solar_system": None,
         "last_seen_at": None,
+    }
+
+
+def apply_fleet_crossing_mass(
+    user, old_system_id: int, new_system_id: int, mass_kg: float
+) -> list[tuple[int, WormholeConnection]]:
+    """Deduct `mass_kg` from every wormhole-type WormholeConnection matching
+    the (old_system_id, new_system_id) pair across every Map visible to
+    `user` - per the fleet-mass-tracking wayfinder map's ticket 08, this
+    applies to *every* match found (even ambiguous duplicates - the same
+    real hole charted on more than one visible map, or legitimate duplicate
+    manual wormholes on one map), since this is a guide, not an
+    authoritative ledger. If no connection matches the pair on any visible
+    map, nothing happens - unlike the owned-character auto-grow flow, a
+    fleet-mate's movement never auto-creates a system/connection on someone
+    else's map.
+
+    Returns (map_id, connection) for each connection whose effective
+    mass_status changed, so the caller can decide what to broadcast.
+    """
+
+    visible_map_ids = Map.objects.visible_to(user).values_list("id", flat=True)
+
+    map_systems_by_map: dict[int, dict[int, int]] = {}
+    for row in MapSystem.objects.filter(
+        map_id__in=visible_map_ids, solar_system_id__in=[old_system_id, new_system_id]
+    ).values("map_id", "id", "solar_system_id"):
+        map_systems_by_map.setdefault(row["map_id"], {})[row["solar_system_id"]] = row["id"]
+
+    changed: list[tuple[int, WormholeConnection]] = []
+    for map_id, system_lookup in map_systems_by_map.items():
+        old_map_system_id = system_lookup.get(old_system_id)
+        new_map_system_id = system_lookup.get(new_system_id)
+        if old_map_system_id is None or new_map_system_id is None:
+            continue
+
+        connections = WormholeConnection.objects.filter(
+            map_id=map_id, connection_type=WormholeConnection.ConnectionType.WORMHOLE
+        ).filter(
+            Q(top_system_id=old_map_system_id, bottom_system_id=new_map_system_id)
+            | Q(top_system_id=new_map_system_id, bottom_system_id=old_map_system_id)
+        ).select_related("top_signature__wormhole_type", "bottom_signature__wormhole_type")
+
+        for connection in connections:
+            if record_mass_crossing(connection, mass_kg):
+                changed.append((map_id, connection))
+
+    return changed
+
+
+def available_fleet_character_to_schema(
+    character: EveCharacter, owner_name: str, has_active_session: bool
+) -> dict:
+    """Serialize one character in the backseat-FC token pool to
+    AvailableFleetCharacterOut shape - see the fleet-mass-tracking wayfinder
+    map's ticket 12."""
+
+    return {
+        "character_id": character.character_id,
+        "character_name": character.character_name,
+        "owner_name": owner_name,
+        "has_active_session": has_active_session,
+    }
+
+
+def fleet_member_to_schema(member, hop_distance: int | None) -> dict:
+    """Serialize a FleetMemberState to FleetMemberOut shape. `hop_distance`
+    is None for ticket 09's "unknown" (unreachable within the viewer's
+    visible graph) state - `solar_system` itself is always resolved (ESI
+    always reports a real solar_system_id for every member), which is why
+    fleet_session_to_schema only includes members whose location has
+    actually resolved locally."""
+
+    ship_type_name = "Unknown"
+    if member.ship_type_id is not None:
+        ship_type_name = (
+            ItemType.objects.filter(pk=member.ship_type_id)
+            .values_list("name", flat=True)
+            .first()
+            or "Unknown"
+        )
+
+    return {
+        "character_id": member.character_id,
+        "character_name": member.character_name,
+        "ship_type_name": ship_type_name,
+        "solar_system": solar_system_to_schema(member.last_solar_system),
+        "hop_distance": hop_distance,
+    }
+
+
+def fleet_session_to_schema(session, hop_distances: dict[int, int], viewer) -> dict:
+    """Serialize a FleetTrackingSession (plus its live-computed per-member
+    hop distances - see wh_mapper.pathfinding.bfs_hop_distances) to
+    FleetSessionOut shape."""
+
+    members = session.members.filter(last_solar_system__isnull=False).select_related(
+        "last_solar_system"
+    )
+
+    return {
+        "id": session.id,
+        "fc_character_id": session.fc_character.character_id,
+        "fc_character_name": session.fc_character.character_name,
+        "fleet_id": session.fleet_id,
+        "started_by_id": session.started_by_id,
+        "started_at": session.started_at,
+        "is_watcher": session.watchers.filter(user=viewer).exists(),
+        "is_starter": session.started_by_id == viewer.id,
+        "members": [
+            fleet_member_to_schema(member, hop_distances.get(member.last_solar_system_id))
+            for member in members
+        ],
+    }
+
+
+def sde_status() -> dict:
+    """Local eve_sde import health - see wh_mapper_seed_reference_map.py's
+    docstring and wormhole_class_id above for the saga behind why this is
+    worth surfacing on a dashboard rather than only discovered by manually
+    running queries in a shell, as this project's own maintainer had to do
+    once already. `total_jspace_systems`/`jspace_with_raw_wormhole_class`
+    are the concrete version of that "is the class data actually there"
+    question - expect the latter to stay tiny (CCP's own export barely
+    covers it) even on a fully up to date import; that's normal, not a
+    problem this page should flag.
+    """
+
+    eve_sde = EveSDE.get_solo()
+    jspace_systems = SolarSystem.objects.filter(
+        id__gte=WORMHOLE_SPACE_ID_MIN, id__lt=WORMHOLE_SPACE_ID_MAX
+    )
+
+    return {
+        "build_number": eve_sde.build_number,
+        "release_date": eve_sde.release_date,
+        "last_check_date": eve_sde.last_check_date,
+        "total_solar_systems": SolarSystem.objects.count(),
+        "total_jspace_systems": jspace_systems.count(),
+        "jspace_with_raw_wormhole_class": jspace_systems.filter(
+            wormhole_class_id_raw__isnull=False
+        ).count(),
+    }
+
+
+def task_heartbeat_status() -> list[dict]:
+    """One row per periodic task this app schedules (TASK_EXPECTED_INTERVAL_
+    SECONDS), merged with whatever TaskHeartbeat data actually exists -
+    every task appears here even if it has never once run, rather than
+    silently vanishing from the list (a task that's never run is exactly
+    the kind of thing this page exists to surface). `stale` is a generous
+    3x-the-expected-interval grace window, so a single slow tick doesn't
+    read as broken.
+    """
+
+    heartbeats = {h.task_name: h for h in TaskHeartbeat.objects.all()}
+    now = timezone.now()
+
+    rows = []
+    for task_name, expected_interval in TASK_EXPECTED_INTERVAL_SECONDS.items():
+        heartbeat = heartbeats.get(task_name)
+        stale = (
+            heartbeat is None
+            or (now - heartbeat.last_run_at).total_seconds() > expected_interval * 3
+        )
+        rows.append(
+            {
+                "task_name": task_name,
+                "expected_interval_seconds": expected_interval,
+                "last_run_at": heartbeat.last_run_at if heartbeat else None,
+                "last_success": heartbeat.last_success if heartbeat else None,
+                "last_error": heartbeat.last_error if heartbeat else "",
+                "stale": stale,
+            }
+        )
+    return rows
+
+
+def usage_stats() -> dict:
+    """Coarse app-wide activity counts - map counts by visibility, active
+    tracked characters, and current live map presences (open websocket
+    connections - see MapPresence's docstring for why its row count is a
+    good proxy for "viewers right now")."""
+
+    return {
+        "total_maps": Map.objects.count(),
+        "private_maps": Map.objects.filter(visibility=Map.Visibility.PRIVATE).count(),
+        "shared_maps": Map.objects.filter(visibility=Map.Visibility.SHARED).count(),
+        "active_tracked_characters": TrackedCharacter.objects.filter(is_active=True).count(),
+        "live_map_presences": MapPresence.objects.count(),
+    }
+
+
+def wormhole_type_coverage() -> dict:
+    """How many WormholeType rows actually have their derived fields
+    populated - low numbers here mean wh_mapper_derive_wormhole_types needs
+    a rerun (e.g. after a fresh SDE import), not that something's broken."""
+
+    return {
+        "total": WormholeType.objects.count(),
+        "with_leads_to_class": WormholeType.objects.filter(
+            leads_to_class__isnull=False
+        ).count(),
+        "with_max_mass": WormholeType.objects.filter(max_mass__isnull=False).count(),
+        "with_max_jump_mass": WormholeType.objects.filter(
+            max_jump_mass__isnull=False
+        ).count(),
+        "with_max_stable_time": WormholeType.objects.filter(
+            max_stable_time__isnull=False
+        ).count(),
+    }
+
+
+def admin_map_list() -> list[dict]:
+    """Every current Map, for the admin status page - an admin-wide flat
+    listing, unlike map_to_schema (scoped to one viewer's is_owner/
+    can_edit_sharing, neither of which applies here). system_count/
+    active_users are batched (one query each across every map) rather than
+    queried per-map, same reasoning as bulk_system_owners - this list is
+    meant to stay cheap even with a few hundred maps in it.
+    """
+
+    maps = list(Map.objects.select_related("owner").order_by("-created_at"))
+
+    system_counts = dict(
+        MapSystem.objects.values("map_id")
+        .annotate(count=Count("id"))
+        .values_list("map_id", "count")
+    )
+    presence_counts = dict(
+        MapPresence.objects.values("map_id")
+        .annotate(count=Count("user_id", distinct=True))
+        .values_list("map_id", "count")
+    )
+
+    return [
+        {
+            "id": m.id,
+            "name": m.name,
+            "owner_name": m.owner.username,
+            "visibility": m.visibility,
+            "created_at": m.created_at,
+            "last_updated": map_last_updated(m),
+            "system_count": system_counts.get(m.id, 0),
+            "active_users": presence_counts.get(m.id, 0),
+        }
+        for m in maps
+    ]
+
+
+def admin_route_list() -> list[dict]:
+    """Every current (not yet pruned by wh_mapper.tasks.prune_stale_routes)
+    shared Route, for the admin status page."""
+
+    routes = Route.objects.select_related(
+        "owner", "start_system", "end_system"
+    ).order_by("-last_viewed_at")
+
+    return [
+        {
+            "id": r.id,
+            "owner_name": r.owner.username,
+            "start_system_name": r.start_system.name,
+            "end_system_name": r.end_system.name,
+            "visibility": r.visibility,
+            "found": r.found,
+            "last_viewed_at": r.last_viewed_at,
+            "created_at": r.created_at,
+        }
+        for r in routes
+    ]
+
+
+def app_status_to_schema() -> dict:
+    """Serialize the whole admin status page's worth of data to
+    AppStatusOut shape."""
+
+    return {
+        "sde": sde_status(),
+        "tasks": task_heartbeat_status(),
+        "usage": usage_stats(),
+        "wormhole_types": wormhole_type_coverage(),
+        "maps": admin_map_list(),
+        "routes": admin_route_list(),
     }

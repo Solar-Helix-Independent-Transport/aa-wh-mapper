@@ -122,6 +122,33 @@ export const SPACE_TYPE_CLASS: Record<string, string> = {
   "Abyssal Deadspace": "space-abyssal",
 };
 
+// Titlebar danger-accent override for a Wormhole system, by
+// wormhole_class_id - a green->yellow->orange->red stripe across the left
+// 35% of the titlebar (C1 safest through C5+ most dangerous), with the
+// remaining 65% staying the flat "space-wormhole" purple SPACE_TYPE_CLASS
+// gives every J-space system (see the CSS comment on .wh-class-1 for why
+// purple stays dominant). C6, C13 (shattered), and the five Drifter regions
+// all share C5's "most dangerous" red - danger stops escalating in color
+// past that point, it's just "red" from here up. Thera (12) and any class
+// SystemNode.tsx couldn't derive intentionally have no entry here - they
+// fall back to the plain space-wormhole color (see SystemNode.tsx's
+// spaceTypeClass), since Thera isn't itself dangerous the way a high class
+// is.
+export const WORMHOLE_CLASS_DANGER_CSS: Record<number, string> = {
+  1: "wh-class-1",
+  2: "wh-class-2",
+  3: "wh-class-3",
+  4: "wh-class-4",
+  5: "wh-class-dangerous",
+  6: "wh-class-dangerous",
+  13: "wh-class-dangerous",
+  14: "wh-class-dangerous",
+  15: "wh-class-dangerous",
+  16: "wh-class-dangerous",
+  17: "wh-class-dangerous",
+  18: "wh-class-dangerous",
+};
+
 // Close codes MapConsumer sends for a deliberate, non-recoverable rejection
 // (see wh_mapper/consumers.py) - retrying without a code/permission change
 // would just hammer the server forever, so these stop the retry loop instead

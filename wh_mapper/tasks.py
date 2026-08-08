@@ -1,7 +1,9 @@
 """App Tasks"""
 
 # Standard Library
+import functools
 import logging
+import traceback
 from datetime import timedelta
 
 # Third Party
@@ -31,11 +33,15 @@ from esi.models import Token
 
 # AA WH Mapper App
 from wh_mapper.api.helpers import (
+    apply_fleet_crossing_mass,
     connection_to_schema,
     connection_wormhole_type,
+    fleet_session_to_schema,
     get_or_create_connection,
     recompute_route,
     remaining_life_hours,
+    resolve_fleet_character_name,
+    ship_mass_kg,
     signature_reference_time,
     single_system_owner,
     stargate_connects,
@@ -43,34 +49,81 @@ from wh_mapper.api.helpers import (
     tracked_character_to_schema,
 )
 from wh_mapper.broadcast import (
+    broadcast_fleet_event,
     broadcast_map_event,
     broadcast_route_event,
     send_map_event_to_user,
 )
 from wh_mapper.constants import (
+    CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS,
+    FLEET_POLL_RESCHEDULE_SECONDS,
+    FLEET_SCOPES,
+    FLEET_SESSION_FAILURE_THRESHOLD,
     LOCATION_SCOPES,
     MAP_PRESENCE_STALE_AFTER_SECONDS,
     NEW_SYSTEM_OFFSET_X,
-    POLL_RESCHEDULE_SECONDS,
     ROUTE_STALE_AFTER_SECONDS,
 )
 from wh_mapper.consumers import _group_name
 from wh_mapper.models import (
+    FleetMemberState,
+    FleetTrackingSession,
     Map,
     MapPresence,
     MapSystem,
     Route,
     Signature,
     SystemSovereignty,
+    TaskHeartbeat,
     TrackedCharacter,
     WormholeConnection,
 )
+from wh_mapper.pathfinding import bfs_hop_distances, build_graph
 from wh_mapper.providers import esi
 
 logger = logging.getLogger(__name__)
 
 
+def record_task_heartbeat(task_name: str, success: bool = True, error: str = "") -> None:
+    """Upsert a TaskHeartbeat row - see that model's docstring for why this
+    exists instead of reading django-celery-beat's PeriodicTask."""
+
+    TaskHeartbeat.objects.update_or_create(
+        task_name=task_name,
+        defaults={
+            "last_run_at": timezone.now(),
+            "last_success": success,
+            "last_error": "" if success else error[:2000],
+        },
+    )
+
+
+def track_heartbeat(task_name: str):
+    """Decorator recording a TaskHeartbeat on every call of a periodic task
+    - success or failure, the exception still propagates afterward so
+    Celery's own retry/error handling (and QueueOnce, for the tasks that use
+    it) behaves exactly as it would without this. Apply directly to the
+    plain function, below @shared_task, so it wraps the real call rather
+    than Celery's task-registration machinery."""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                result = func(*args, **kwargs)
+            except Exception as exc:
+                record_task_heartbeat(task_name, success=False, error=traceback.format_exc())
+                raise exc
+            record_task_heartbeat(task_name, success=True)
+            return result
+
+        return wrapper
+
+    return decorator
+
+
 @shared_task
+@track_heartbeat("age_wormhole_connections")
 def age_wormhole_connections():
     """Delete any signature/connection whose expected remaining lifetime has
     run out - either because its wormhole type's real max_stable_time has
@@ -165,6 +218,7 @@ def age_wormhole_connections():
 
 
 @shared_task(bind=True, base=QueueOnce, once={"graceful": True})
+@track_heartbeat("refresh_system_sovereignty")
 def refresh_system_sovereignty(self):
     """Replace the SystemSovereignty snapshot wholesale from ESI's public
     sovereignty map, then pre-warm EveAllianceInfo/EveFactionInfo for every
@@ -233,6 +287,7 @@ def refresh_system_sovereignty(self):
 
 
 @shared_task
+@track_heartbeat("prune_stale_map_presence")
 def prune_stale_map_presence():
     """Delete any MapPresence row whose last heartbeat (see
     MapConsumer.receive_json) is older than MAP_PRESENCE_STALE_AFTER_SECONDS.
@@ -310,6 +365,7 @@ def recompute_routes_for_map(map_id: int) -> int:
 
 
 @shared_task
+@track_heartbeat("prune_stale_routes")
 def prune_stale_routes() -> int:
     """Delete any shared Route whose last_viewed_at is older than
     ROUTE_STALE_AFTER_SECONDS - mirrors prune_stale_map_presence's use of
@@ -341,18 +397,20 @@ def prune_stale_routes() -> int:
     # tick), not against the deliberate self-reschedule chain.
     once={"graceful": True, "unlock_before_run": True},
 )
+@track_heartbeat("poll_tracked_character_locations")
 def poll_tracked_character_locations(self):
     """Fan out one location lookup per distinct tracked character whose
     owner currently has any map open (has an active MapPresence row) -
     tracking a character does nothing while its owner isn't watching
     anything.
 
-    Self-reschedules every `POLL_RESCHEDULE_SECONDS` while there's anyone to
-    poll, so live viewers get near-real-time updates without needing a tight
-    CELERYBEAT_SCHEDULE interval. Once nobody's watching, it stops
-    rescheduling itself - schedule an initial call periodically (e.g. every
-    minute) via CELERYBEAT_SCHEDULE in your AA install's local settings, as a
-    fallback to pick tracking back up whenever presence returns.
+    Self-reschedules every `CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS` while
+    there's anyone to poll, so live viewers get near-real-time updates
+    without needing a tight CELERYBEAT_SCHEDULE interval. Once nobody's
+    watching, it stops rescheduling itself - schedule an initial call
+    periodically (e.g. every minute) via CELERYBEAT_SCHEDULE in your AA
+    install's local settings, as a fallback to pick tracking back up
+    whenever presence returns.
     """
 
     online_user_ids = set(MapPresence.objects.values_list("user_id", flat=True))
@@ -364,8 +422,9 @@ def poll_tracked_character_locations(self):
     # dispatched so poll_character_location can notice when they log back in.
     # Filtered by added_by_id at the DB (rather than fetching every
     # TrackedCharacter row and filtering in Python) - this reschedules
-    # itself every POLL_RESCHEDULE_SECONDS while anyone's online, so an
-    # unfiltered fetch would re-pull the whole table on every tick.
+    # itself every CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS while anyone's
+    # online, so an unfiltered fetch would re-pull the whole table on every
+    # tick.
     trackable = TrackedCharacter.objects.filter(added_by_id__in=online_user_ids).values_list(
         "id", "character__character_id", "added_by_id"
     )
@@ -380,7 +439,7 @@ def poll_tracked_character_locations(self):
     for character_id, tracked_ids in by_character_id.items():
         poll_character_location.apply_async(args=[character_id, tracked_ids])
 
-    self.apply_async(countdown=POLL_RESCHEDULE_SECONDS)
+    self.apply_async(countdown=CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS)
 
 
 @shared_task(
@@ -669,6 +728,217 @@ def _grow_map_for_character(
                         "new_map_system_id": new_map_system.id,
                     },
                 )
+
+
+@shared_task(
+    bind=True,
+    base=QueueOnce,
+    # Same unlock_before_run reasoning as poll_tracked_character_locations -
+    # this requeues itself at the end of a run, so the lock must be released
+    # at start rather than held for the run's duration.
+    once={"graceful": True, "unlock_before_run": True},
+)
+def poll_fleet_tracking_sessions(self):
+    """Fan out one poll per active FleetTrackingSession.
+
+    Unlike poll_tracked_character_locations, this is never gated on
+    MapPresence/viewers - per the fleet-mass-tracking wayfinder map's
+    ticket 08, pausing here while a session is active would silently lose
+    real mass-crossing state, unlike personal location tracking where a
+    paused poll just means briefly stale display data.
+
+    Self-reschedules every FLEET_POLL_RESCHEDULE_SECONDS while any session is
+    active; schedule an initial call periodically (e.g. every minute) via
+    CELERYBEAT_SCHEDULE in your AA install's local settings, as a fallback
+    to pick polling back up whenever a session starts.
+    """
+
+    session_ids = list(FleetTrackingSession.objects.values_list("id", flat=True))
+    if not session_ids:
+        return
+
+    for session_id in session_ids:
+        poll_fleet_session.apply_async(args=[session_id])
+
+    self.apply_async(countdown=FLEET_POLL_RESCHEDULE_SECONDS)
+
+
+def _unwrap_esi_list(result, attr_name: str):
+    """Some ESI operations wrap an array-typed response in a named
+    container attribute (see refresh_system_sovereignty's
+    `result.solar_systems`), others hand back the array/RootModel directly
+    (see that same task's `.root` unwrapping for a oneOf variant) - this
+    handles either shape defensively rather than assuming one, since the
+    exact wrapping for GetFleetsFleetIdMembers wasn't pinned down by the
+    fleet-mass-tracking wayfinder map's ESI research (ticket 05)."""
+
+    if hasattr(result, attr_name):
+        return getattr(result, attr_name)
+    if hasattr(result, "root"):
+        return result.root
+    return result
+
+
+def _fetch_fleet_members(character_id: int, token) -> tuple[int, list] | None:
+    """GetCharactersCharacterIdFleet + GetFleetsFleetIdMembers, returning
+    (fleet_id, members) or None on any failure - including `character_id`
+    no longer being fleet boss (checked via fleet_boss_id, per ticket 05's
+    finding that this pre-check is available) or the fleet having
+    disbanded/being inaccessible (both surface as the same ambiguous 404 on
+    the members endpoint, per that same research - there is no way to tell
+    the two apart, so both are just "this session is no longer usable")."""
+
+    try:
+        fleet_info = esi.client.Fleets.GetCharactersCharacterIdFleet(
+            character_id=character_id, token=token
+        ).result()
+    except (TokenError, ESIErrorLimitException, HTTPClientError, HTTPServerError) as error:
+        logger.info("Fleet lookup failed for character %s: %s", character_id, error)
+        return None
+    except Exception:
+        logger.exception("Unexpected error looking up fleet for character %s", character_id)
+        return None
+
+    if getattr(fleet_info, "fleet_boss_id", None) != character_id:
+        logger.info("Character %s is no longer fleet boss", character_id)
+        return None
+
+    try:
+        members_result = esi.client.Fleets.GetFleetsFleetIdMembers(
+            fleet_id=fleet_info.fleet_id, token=token
+        ).result()
+    except (TokenError, ESIErrorLimitException, HTTPClientError, HTTPServerError) as error:
+        logger.info("Fleet members lookup failed for fleet %s: %s", fleet_info.fleet_id, error)
+        return None
+    except Exception:
+        logger.exception("Unexpected error fetching members for fleet %s", fleet_info.fleet_id)
+        return None
+
+    return fleet_info.fleet_id, list(_unwrap_esi_list(members_result, "members"))
+
+
+@shared_task(
+    base=QueueOnce,
+    once={"graceful": True, "keys": ["session_id"]},
+)
+def poll_fleet_session(session_id: int):
+    """Poll one FleetTrackingSession's live composition, detect per-member
+    jumps against FleetMemberState, apply mass deductions for any wormhole
+    crossing (see wh_mapper.api.helpers.apply_fleet_crossing_mass), and
+    broadcast the refreshed state to every connected viewer.
+
+    See the fleet-mass-tracking wayfinder map's tickets 07/08/09.
+    """
+
+    try:
+        session = FleetTrackingSession.objects.select_related(
+            "fc_character", "started_by"
+        ).get(pk=session_id)
+    except FleetTrackingSession.DoesNotExist:
+        return
+
+    character_id = session.fc_character.character_id
+    token = Token.get_token(character_id, FLEET_SCOPES)
+
+    result = _fetch_fleet_members(character_id, token) if token else None
+    if result is None:
+        _handle_fleet_poll_failure(session)
+        return
+
+    fleet_id, member_rows = result
+
+    session.fleet_id = fleet_id
+    session.consecutive_failures = 0
+    session.last_polled_at = timezone.now()
+    session.save(update_fields=["fleet_id", "consecutive_failures", "last_polled_at"])
+
+    existing_states = {
+        state.character_id: state
+        for state in FleetMemberState.objects.filter(session=session)
+    }
+
+    fc_new_system_id = None
+    seen_character_ids = set()
+    changed_connections: list[tuple[int, WormholeConnection]] = []
+
+    for row in member_rows:
+        member_character_id = row.character_id
+        new_system_id = row.solar_system_id
+        ship_type_id = getattr(row, "ship_type_id", None)
+        seen_character_ids.add(member_character_id)
+
+        if member_character_id == character_id:
+            fc_new_system_id = new_system_id
+
+        try:
+            new_system = SolarSystem.objects.get(pk=new_system_id)
+        except SolarSystem.DoesNotExist:
+            logger.warning(
+                "Solar system %s (fleet member %s) not found in local SDE data, skipping",
+                new_system_id,
+                member_character_id,
+            )
+            continue
+
+        state = existing_states.get(member_character_id)
+        old_system_id = state.last_solar_system_id if state else None
+
+        if state is None:
+            state = FleetMemberState(
+                session=session,
+                character_id=member_character_id,
+                character_name=resolve_fleet_character_name(member_character_id),
+            )
+
+        if old_system_id is not None and old_system_id != new_system_id:
+            mass_kg = ship_mass_kg(ship_type_id) if ship_type_id else None
+            if mass_kg:
+                changed_connections.extend(
+                    apply_fleet_crossing_mass(
+                        session.started_by, old_system_id, new_system_id, mass_kg
+                    )
+                )
+
+        state.ship_type_id = ship_type_id
+        state.last_solar_system = new_system
+        state.save()
+
+    # Members who've left the fleet since the last poll - their state is
+    # meaningless once they're no longer in it.
+    FleetMemberState.objects.filter(session=session).exclude(
+        character_id__in=seen_character_ids
+    ).delete()
+
+    for map_id, connection in changed_connections:
+        broadcast_map_event(map_id, "connection.updated", connection_to_schema(connection))
+
+    hop_distances = (
+        bfs_hop_distances(build_graph(session.started_by), fc_new_system_id)
+        if fc_new_system_id is not None
+        else {}
+    )
+    payload = fleet_session_to_schema(session, hop_distances, session.started_by)
+    broadcast_fleet_event(session.id, "fleet.updated", payload)
+
+
+def _handle_fleet_poll_failure(session: FleetTrackingSession) -> None:
+    """One failed poll for `session` - increments consecutive_failures, and
+    auto-stops (deletes) the session once FLEET_SESSION_FAILURE_THRESHOLD
+    consecutive failures have accumulated. See ticket 07."""
+
+    session.consecutive_failures += 1
+    if session.consecutive_failures < FLEET_SESSION_FAILURE_THRESHOLD:
+        session.save(update_fields=["consecutive_failures"])
+        return
+
+    session_id = session.id
+    logger.info(
+        "Fleet tracking session %s auto-stopped after %s consecutive failed polls",
+        session_id,
+        session.consecutive_failures,
+    )
+    session.delete()
+    broadcast_fleet_event(session_id, "fleet.session_ended", {"session_id": session_id})
 
 
 def _position_near(map_system: MapSystem | None) -> dict:
