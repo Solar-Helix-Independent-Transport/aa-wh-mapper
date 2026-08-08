@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { ReactFlowProvider } from "@xyflow/react";
 import { getMapState } from "../api/maps";
 import type {
@@ -16,8 +15,9 @@ import {
 } from "../constants";
 import { useMapSocket } from "../hooks/useMapSocket";
 import { useResizablePanel } from "../hooks/useResizablePanel";
-import { AppBrand } from "./AppBrand";
+import { AppHeader } from "./AppHeader";
 import { ConnectionFlagsPanel } from "./ConnectionFlagsPanel";
+import type { ContextMenuItem } from "./ContextMenu";
 import { IdentifyJumpSignatureDialog } from "./IdentifyJumpSignatureDialog";
 import { LoadingState } from "./LoadingState";
 import { MapCanvas } from "./MapCanvas";
@@ -26,7 +26,6 @@ import { SignaturePanel } from "./SignaturePanel";
 import { AddSystemDialog } from "./AddSystemDialog";
 import { ImportRegionDialog } from "./ImportRegionDialog";
 import { ShareDialog } from "./ShareDialog";
-import { TrackedCharactersPanel } from "./TrackedCharactersPanel";
 import { applyMapEvent } from "./mapEvents";
 
 interface Props {
@@ -44,7 +43,6 @@ export function MapView({ mapId }: Props) {
   const [showImportRegion, setShowImportRegion] = useState(false);
   const [showFlags, setShowFlags] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const [showTracking, setShowTracking] = useState(false);
   // A queue, not a single slot: several tracked characters (or the same one,
   // jumping several wormholes back to back) can each generate a prompt
   // before the viewer answers the first one - overwriting a single slot
@@ -168,11 +166,21 @@ export function MapView({ mapId }: Props) {
   }, []);
 
   if (error) {
-    return <p className="error">Failed to load map: {error}</p>;
+    return (
+      <>
+        <AppHeader />
+        <p className="error">Failed to load map: {error}</p>
+      </>
+    );
   }
 
   if (!state) {
-    return <LoadingState label="Loading map…" />;
+    return (
+      <>
+        <AppHeader />
+        <LoadingState label="Loading map…" />
+      </>
+    );
   }
 
   const dismissJumpPrompt = (connectionId: number) =>
@@ -234,43 +242,47 @@ export function MapView({ mapId }: Props) {
     );
   });
 
+  // Flags/Import region/Share/Pending signatures used to sit inline in the
+  // toolbar alongside everything else - the thing that actually made the
+  // old header impractical. These are all secondary/lower-frequency next to
+  // "+ Add system", so they move into AppHeader's overflow menu instead;
+  // Import region and Pending signatures only appear in it at all once
+  // they're relevant (an empty map, or an unidentified connection).
+  const overflowItems: ContextMenuItem[] = [
+    { kind: "action", label: "Flags", onClick: () => setShowFlags(true) },
+    ...(state.systems.length === 0
+      ? [
+          {
+            kind: "action" as const,
+            label: "Import region",
+            onClick: () => setShowImportRegion(true),
+          },
+        ]
+      : []),
+    { kind: "action", label: "Share", onClick: () => setShowShare(true) },
+    ...(pendingConnections.length > 0
+      ? [
+          {
+            kind: "action" as const,
+            label: `Pending signatures (${pendingConnections.length})`,
+            onClick: reopenPendingSignatures,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="map-view">
-      <div className="app-header map-toolbar">
-        <AppBrand />
-        <h2 className="map-title">{state.map.name}</h2>
-        <div className="map-toolbar-actions">
-          <Link to="/route" className="nav-link">
-            Navigate
-          </Link>
+      <AppHeader
+        title={state.map.name}
+        actions={
           <button type="button" onClick={() => openAddSystem()}>
             + Add system
           </button>
-          <button type="button" onClick={() => setShowFlags(true)}>
-            Flags
-          </button>
-          {state.systems.length === 0 && (
-            <button type="button" onClick={() => setShowImportRegion(true)}>
-              Import region
-            </button>
-          )}
-          <button type="button" onClick={() => setShowShare(true)}>
-            Share
-          </button>
-          <button type="button" onClick={() => setShowTracking(true)}>
-            Tracked characters ({state.tracked_characters.length})
-          </button>
-          {pendingConnections.length > 0 && (
-            <button
-              type="button"
-              onClick={reopenPendingSignatures}
-              title="Reopen the 'which signature was that' prompt for any wormhole connection still missing one"
-            >
-              Pending signatures ({pendingConnections.length})
-            </button>
-          )}
-        </div>
-      </div>
+        }
+        overflowItems={overflowItems}
+        trackedCharacterCount={state.tracked_characters.length}
+      />
 
       <div className="map-view-body">
         <ReactFlowProvider>
@@ -351,10 +363,6 @@ export function MapView({ mapId }: Props) {
           onClose={() => setShowFlags(false)}
           onChanged={refresh}
         />
-      )}
-
-      {showTracking && (
-        <TrackedCharactersPanel onClose={() => setShowTracking(false)} />
       )}
 
       {activeJumpPrompt && (

@@ -12,6 +12,7 @@ import {
 } from "../constants";
 import { useResizablePanel } from "../hooks/useResizablePanel";
 import { useSearch } from "../hooks/useSearch";
+import { AppHeader } from "./AppHeader";
 import { FleetPanel } from "./FleetPanel";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { RouteAlternateBanner } from "./RouteAlternateBanner";
@@ -90,6 +91,7 @@ export function RouteFinder() {
 
   return (
     <div className="route-view">
+      <AppHeader />
       <div className="route-toolbar">
         <h2 className="route-toolbar-title">Navigate</h2>
 

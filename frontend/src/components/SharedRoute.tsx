@@ -11,6 +11,7 @@ import {
 } from "../constants";
 import { useResizablePanel } from "../hooks/useResizablePanel";
 import { useRouteSocket } from "../hooks/useRouteSocket";
+import { AppHeader } from "./AppHeader";
 import { LoadingState } from "./LoadingState";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { RouteAlternateBanner } from "./RouteAlternateBanner";
@@ -69,11 +70,21 @@ export function SharedRoute({ routeId }: { routeId: number }) {
   };
 
   if (error) {
-    return <p className="error">{error}</p>;
+    return (
+      <>
+        <AppHeader />
+        <p className="error">{error}</p>
+      </>
+    );
   }
 
   if (!route) {
-    return <LoadingState label="Loading route…" />;
+    return (
+      <>
+        <AppHeader />
+        <LoadingState label="Loading route…" />
+      </>
+    );
   }
 
   const displayedRoute =
@@ -87,6 +98,7 @@ export function SharedRoute({ routeId }: { routeId: number }) {
 
   return (
     <div className="route-view">
+      <AppHeader />
       <div className="route-toolbar">
         <h2 className="route-toolbar-title">
           {route.start_system.name} → {route.end_system.name}

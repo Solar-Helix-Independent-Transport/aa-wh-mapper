@@ -14,6 +14,10 @@ interface Props<TData extends RowData> {
   columns: DataTableColumn<TData>[];
   getRowId?: (row: TData) => string;
   onRowClick?: (row: TData) => void;
+  // Rendered inline with the search box (title on the left, search pinned
+  // right - see .data-table-header) instead of each call site putting its
+  // own <h2> above the table separately.
+  title?: string;
   searchPlaceholder?: string;
   emptyMessage?: string;
   pageSize?: number;
@@ -32,6 +36,7 @@ export function DataTable<TData extends RowData>({
   columns,
   getRowId,
   onRowClick,
+  title,
   searchPlaceholder = "Search…",
   emptyMessage = "No results.",
   pageSize = 10,
@@ -59,13 +64,16 @@ export function DataTable<TData extends RowData>({
 
   return (
     <div className="data-table-wrapper">
-      <input
-        type="text"
-        className="data-table-search"
-        placeholder={searchPlaceholder}
-        value={globalFilter}
-        onChange={(event) => setGlobalFilter(event.target.value)}
-      />
+      <div className="data-table-header">
+        {title && <h2>{title}</h2>}
+        <input
+          type="text"
+          className="data-table-search"
+          placeholder={searchPlaceholder}
+          value={globalFilter}
+          onChange={(event) => setGlobalFilter(event.target.value)}
+        />
+      </div>
 
       {filteredCount === 0 ? (
         <p className="dim data-table-empty">{emptyMessage}</p>

@@ -7,9 +7,17 @@
 
 .app-header {
   display: flex;
-  align-items: center;
+  /* stretch, not center: .nav-link opts into align-self:stretch so its
+      active-page indicator (border-bottom) lands on the bar's own bottom
+      edge instead of floating just under the link text - see .nav-link.
+      No vertical padding here on purpose: any padding here would sit
+      *outside* the stretched .nav-link, leaving a gap between its border-
+      bottom and this element's own border-bottom instead of the two lining
+      up. The "slightly bigger" sizing comes from .nav-link's own vertical
+      padding instead, since that stays inside the stretch. */
+  align-items: stretch;
   gap: 16px;
-  padding: 16px 24px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-raised);
 }
@@ -21,8 +29,19 @@
   color: inherit;
 }
 
-.app-brand:hover h1 {
-  color: var(--accent-bright);
+.app-brand-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+  /* Dimmed toward the nav-link text's own muted tone (--text-dim) instead
+      of standing out at full brightness next to it - simpler than trying to
+      recolor the SVG itself, and reads as "part of the same nav" rather
+      than a separate full-color logo bolted onto a flat text bar. */
+  opacity: 0.7;
+}
+
+.app-brand:hover .app-brand-logo {
+  opacity: 1;
 }
 
 .map-title {
@@ -37,11 +56,29 @@
   white-space: nowrap;
 }
 
-/* Push the action buttons to the far right of the bar, brand (+ title) pinned left. */
-.map-toolbar-actions {
+/* AppHeader's two zones - left is app-wide navigation (brand, page title,
+    Maps/Navigate/Status), right is whatever the current page needs (Tracked
+    characters, page-specific actions, the overflow menu). margin-left:auto
+    on the right zone (rather than justify-content:space-between on
+    .app-header) is what actually pins it to the far edge regardless of how
+    short the left zone is. */
+.app-header-nav {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+
+.app-header-context {
+  display: flex;
+  align-items: center;
+  gap: 18px;
   margin-left: auto;
+}
+
+.app-header-overflow-button {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .link-button {
@@ -67,9 +104,13 @@
   color: var(--text-dim);
 }
 
+/* No padding here - AppHeader is the first thing every page under this
+    renders (see AppHeader.tsx), and it needs to sit flush against the
+    viewport edges like a real top bar, not inset by this container's
+    padding. Each page's own content container (.map-list, .status-page,
+    etc.) carries its own padding instead. */
 .app-main {
   flex: 1;
-  padding: 24px;
 }
 
 .dim {
@@ -123,6 +164,7 @@
 .map-list {
   max-width: 720px;
   margin: 0 auto;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 32px;
@@ -218,6 +260,24 @@
 .app-main-full {
   padding: 0;
   display: flex;
+  /* Explicit, not left to default (row): MapView/RouteFinder/SharedRoute's
+      loading/error states render AppHeader as a sibling of a LoadingState/
+      error <p> here (rather than nested one level down inside .map-view/
+      .route-view, the way the loaded state is) - with the row default and
+      its align-items:stretch, that briefly stretched the header to fill the
+      full row height (flickering "full screen") until state loaded and
+      collapsed back to a single child that happened to look right by
+      accident. */
+  flex-direction: column;
+  /* Flex items default to min-height:auto (content-based), not 0 - without
+      this override, .map-view's tall content (a long SignaturePanel) still
+      pushes this wrapper past #root's 100vh cap even though .map-view
+      itself has height:100vh, because *this* box's own automatic minimum
+      size is computed from .map-view's content rather than clamped to it.
+      Same reasoning as .map-view's own min-height:0 below, one level
+      further out - see #root's comment in index.css for the matching
+      change that makes 100vh a real cap instead of just a floor. */
+  min-height: 0;
 }
 
 /* Map view */
@@ -238,26 +298,22 @@
   min-height: 0;
 }
 
-.map-toolbar {
-  display: flex;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-/* Shared by both header bars (the map list's plain .app-header and
-MapView's .app-header.map-toolbar) so the "Tracked characters" button
-looks and sits the same on both screens instead of just the map view. */
+/* Every page's AppHeader shares this button styling - see AppHeader.tsx.
+    Flat navbar items, not boxed buttons: no border/background, just text
+    with a hover color change, matching .nav-link's treatment on the other
+    side of the bar so the whole header reads as one consistent nav rather
+    than "links on the left, buttons on the right". */
 .app-header button {
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-raised);
-  color: var(--text);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .app-header button:hover {
-  border-color: var(--accent);
   color: var(--accent-bright);
 }
 
@@ -794,6 +850,13 @@ are set by the system's space type - .system-node-name overrides this
   position: relative;
   flex-shrink: 0;
   display: flex;
+  /* Flex items default to min-height:auto, not 0 - without this override,
+      a tall SignaturePanel's intrinsic content height wins over
+      .map-view-body's align-items:stretch, so this wrapper (and the whole
+      page) grows past the viewport instead of .signature-panel's own
+      overflow-y:auto ever kicking in. Same reasoning as .signature-panel
+      below, one level further out. */
+  min-height: 0;
 }
 
 .resizable-panel-resize-handle {
@@ -847,6 +910,7 @@ are set by the system's space type - .system-node-name overrides this
 
 .signature-panel {
   width: 100%;
+  min-height: 0;
   border-left: 1px solid var(--border);
   background: var(--bg-raised);
   padding: 20px;
@@ -1399,33 +1463,48 @@ action rather than blend in as plain text like .link-button does. */
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-/* Route planner (RouteFinder, SharedRoute, RouteDiagram, RouteLegRow,
-ConnectionFlagsPanel) */
-
+/* AppHeader's left-zone route links - flat navbar items (see
+    .app-header button's comment for why), with an active-page indicator
+    since these are real navigation now, not a one-off "Navigate" link.
+    align-self:stretch (overriding .app-header-nav's own align-items:center)
+    plus its own flex centering is what lets the border-bottom sit on the
+    bar's actual bottom edge - see .app-header's comment. */
 .nav-link {
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-raised);
-  color: var(--text);
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  /* Vertical padding here (not on .app-header) is what makes the bar
+      "slightly bigger" while keeping the border-bottom flush with the
+      bar's own bottom edge - see .app-header's comment. */
+  padding: 6px 2px;
+  color: var(--text-dim);
   text-decoration: none;
   font-size: 14px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
 }
 
 .nav-link:hover {
-  border-color: var(--accent);
   color: var(--accent-bright);
 }
+
+.nav-link-active {
+  color: var(--accent-bright);
+  border-bottom-color: var(--accent);
+}
+
+/* Route planner (RouteFinder, SharedRoute, RouteDiagram, RouteLegRow,
+ConnectionFlagsPanel) */
 
 /* Full-width, MapView-shaped layout: a toolbar row, then a sidebar +
 diagram-pane body filling the rest of the viewport (same treatment as
 .map-view/.map-view-body/.map-canvas-wrapper). */
 
-/* flex:1 within .app-main-full's remaining space below the shared
-.app-header, not a hardcoded 100vh - unlike .map-view, this page still has
-that header showing above it (for the persistent "Navigate" link), so a
-100vh box here would double-count the header's height and push the whole
-page taller than the actual viewport. */
+/* flex:1 within .app-main-full's remaining space, not a hardcoded 100vh
+like .map-view - route pages have no equivalent of SignaturePanel that
+could grow past one viewport's height, so there's nothing forcing a hard
+cap here. AppHeader is this page's own first child (same nesting .map-view
+uses for its own header), not an external sibling. */
 .route-view {
   flex: 1;
   display: flex;
@@ -2155,6 +2234,7 @@ line rather than running together as an undifferentiated pair. */
 .status-page {
   max-width: 960px;
   margin: 0 auto;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -2247,7 +2327,17 @@ line rather than running together as an undifferentiated pair. */
   gap: 10px;
 }
 
+/* Title (if any) on the left, search pinned to the right via margin-left:
+    auto on the input itself - works the same whether or not a title is
+    present, unlike justify-content:space-between on the row. */
+.data-table-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .data-table-search {
+  margin-left: auto;
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid var(--border);

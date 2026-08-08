@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createMap, deleteMap, listMaps, updateMap } from "../api/maps";
 import type { MapOut } from "../api/types";
 import { relativeTimeLabel } from "../lib/relativeTime";
+import { AppHeader } from "./AppHeader";
 import { DataTable } from "./DataTable";
 import { dataTableColumnHelper } from "./dataTableFeatures";
 import { LoadingState } from "./LoadingState";
@@ -221,53 +222,66 @@ export function MapList({ onOpen }: Props) {
   );
 
   if (error) {
-    return <p className="error">Failed to load maps: {error}</p>;
+    return (
+      <>
+        <AppHeader />
+        <p className="error">Failed to load maps: {error}</p>
+      </>
+    );
   }
 
   if (maps === null) {
-    return <LoadingState label="Loading maps…" />;
+    return (
+      <>
+        <AppHeader />
+        <LoadingState label="Loading maps…" />
+      </>
+    );
   }
 
   const mine = maps.filter((m) => m.is_owner);
   const shared = maps.filter((m) => !m.is_owner);
 
   return (
-    <div className="map-list">
-      <form className="new-map-form" onSubmit={handleCreate}>
-        <input
-          type="text"
-          placeholder="New map name"
-          value={newName}
-          onChange={(event) => setNewName(event.target.value)}
-        />
-        <button type="submit" disabled={creating || !newName.trim()}>
-          Create map
-        </button>
-      </form>
+    <>
+      <AppHeader />
+      <div className="map-list">
+        <form className="new-map-form" onSubmit={handleCreate}>
+          <input
+            type="text"
+            placeholder="New map name"
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+          />
+          <button type="submit" disabled={creating || !newName.trim()}>
+            Create map
+          </button>
+        </form>
 
-      <section>
-        <h2>Your maps</h2>
-        <DataTable
-          data={mine}
-          columns={mineColumns}
-          getRowId={(map) => String(map.id)}
-          onRowClick={(map) => editingMapId !== map.id && onOpen(map)}
-          searchPlaceholder="Search your maps…"
-          emptyMessage="No maps yet — create one above."
-        />
-      </section>
+        <section>
+          <DataTable
+            title="Your maps"
+            data={mine}
+            columns={mineColumns}
+            getRowId={(map) => String(map.id)}
+            onRowClick={(map) => editingMapId !== map.id && onOpen(map)}
+            searchPlaceholder="Search your maps…"
+            emptyMessage="No maps yet — create one above."
+          />
+        </section>
 
-      <section>
-        <h2>Shared with you</h2>
-        <DataTable
-          data={shared}
-          columns={sharedColumns}
-          getRowId={(map) => String(map.id)}
-          onRowClick={onOpen}
-          searchPlaceholder="Search shared maps…"
-          emptyMessage="Nothing shared with you yet."
-        />
-      </section>
-    </div>
+        <section>
+          <DataTable
+            title="Shared with you"
+            data={shared}
+            columns={sharedColumns}
+            getRowId={(map) => String(map.id)}
+            onRowClick={onOpen}
+            searchPlaceholder="Search shared maps…"
+            emptyMessage="Nothing shared with you yet."
+          />
+        </section>
+      </div>
+    </>
   );
 }

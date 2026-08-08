@@ -36,7 +36,16 @@ body {
 }
 
 #root {
-  min-height: 100vh;
+  /* A hard cap, not just a floor: .map-view relies on its own height:100vh
+      being measured against a *definite* container height so it can stay
+      pinned to exactly one viewport (see .map-view's comment in App.css) -
+      with only min-height here, #root (and everything under it) is free to
+      grow past 100vh to fit content instead, which is exactly what
+      .map-view's cap is trying to prevent. Non-full pages (MapList etc.)
+      still scroll normally past this: overflow:visible content isn't
+      clipped by a fixed-height ancestor, it just extends the page's normal
+      scrollable area. */
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }

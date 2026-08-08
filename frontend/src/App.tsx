@@ -1,7 +1,5 @@
-import { useState } from "react";
 import {
   BrowserRouter,
-  Link,
   Route,
   Routes,
   useLocation,
@@ -10,13 +8,12 @@ import {
 } from "react-router-dom";
 import "./App.css";
 import { WH_MAPPER_URL_PREFIX } from "./constants";
-import { AppBrand } from "./components/AppBrand";
+import { AppHeader } from "./components/AppHeader";
 import { MapList } from "./components/MapList";
 import { MapView } from "./components/MapView";
 import { RouteFinder } from "./components/RouteFinder";
 import { SharedRoute } from "./components/SharedRoute";
 import { StatusPage } from "./components/StatusPage";
-import { TrackedCharactersPanel } from "./components/TrackedCharactersPanel";
 
 function MapListRoute() {
   const navigate = useNavigate();
@@ -27,7 +24,12 @@ function MapViewRoute() {
   const { mapId } = useParams();
   const id = Number(mapId);
   if (!mapId || Number.isNaN(id)) {
-    return <p className="error">Invalid map.</p>;
+    return (
+      <>
+        <AppHeader />
+        <p className="error">Invalid map.</p>
+      </>
+    );
   }
   return <MapView mapId={id} />;
 }
@@ -36,7 +38,12 @@ function SharedRouteRoute() {
   const { routeId } = useParams();
   const id = Number(routeId);
   if (!routeId || Number.isNaN(id)) {
-    return <p className="error">Invalid route.</p>;
+    return (
+      <>
+        <AppHeader />
+        <p className="error">Invalid route.</p>
+      </>
+    );
   }
   return <SharedRoute routeId={id} />;
 }
@@ -45,41 +52,14 @@ function AppShell() {
   const location = useLocation();
   const isMapView = location.pathname.startsWith("/maps/");
   const isRouteView = location.pathname.startsWith("/route");
-  const [showTracking, setShowTracking] = useState(false);
 
+  // Every page now renders its own <AppHeader/> (see that component) rather
+  // than this shell owning one conditionally - that's what makes Status/
+  // Navigate/Maps reachable from inside a map and keeps every page's header
+  // built from the same two-zone component instead of each page (or
+  // MapView specifically) hand-rolling its own bar.
   return (
     <div className="app-shell">
-      {/* MapView renders its own combined brand + action-buttons bar as a
-          single navbar row - a plain brand-only header here would just
-          duplicate it, so this one only appears on the map list. Tracking is
-          global to the user (not tied to any one map), so it needs an entry
-          point here too - otherwise there'd be no way to manage it without
-          first opening some map. */}
-      {!isMapView && (
-        <header className="app-header">
-          <AppBrand />
-          <div className="map-toolbar-actions">
-            <Link to="/route" className="nav-link">
-              Navigate
-            </Link>
-            {/* Not permission-gated here - the page itself renders a
-                plain "you don't have access" message for anyone without
-                admin_access (see StatusPage), same as visiting a URL you
-                can't use rather than the link not existing. */}
-            <Link to="/status" className="nav-link">
-              Status
-            </Link>
-            <button type="button" onClick={() => setShowTracking(true)}>
-              Tracked characters
-            </button>
-          </div>
-        </header>
-      )}
-
-      {showTracking && (
-        <TrackedCharactersPanel onClose={() => setShowTracking(false)} />
-      )}
-
       <main
         className={
           isMapView || isRouteView ? "app-main app-main-full" : "app-main"
