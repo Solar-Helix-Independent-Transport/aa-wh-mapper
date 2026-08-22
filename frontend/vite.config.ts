@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
   // Must match wh_mapper/templates/wh_mapper/index.html's BASE_URL
   // ("{% static 'wh_mapper/' %}", which resolves to STATIC_URL + "wh_mapper/"
@@ -15,7 +15,12 @@ export default defineConfig({
   // matches where copy-assets.sh actually puts the file, so the browser
   // requests the wrong URL and the image 404s - the JS/CSS chunks still
   // loaded fine because *they* don't depend on this setting at all.
-  base: "/static/wh_mapper/",
+  //
+  // Only applied for `vite build` - for `vite dev` this also controls the
+  // path the dev server itself serves the SPA under, which would then no
+  // longer match BrowserRouter's basename ("/wh-mapper", constants.ts) and
+  // break client-side routing.
+  base: command === "build" ? "/static/wh_mapper/" : "/",
   server: {
     port: 3000,
     proxy: {
@@ -54,4 +59,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

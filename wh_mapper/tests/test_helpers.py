@@ -30,6 +30,7 @@ from wh_mapper.api.helpers import (
     _contributors_for_connection_ids,
     apply_life_status,
     bulk_system_owners,
+    bulk_system_statics,
     connection_effective_life_status,
     connection_time_status,
     get_or_create_connection,
@@ -39,6 +40,7 @@ from wh_mapper.api.helpers import (
     record_contribution,
     remaining_life_hours,
     signature_reference_time,
+    single_system_statics,
     space_type_label,
     stargate_connects,
 )
@@ -49,6 +51,7 @@ from wh_mapper.models import (
     MapSystem,
     Signature,
     SystemSovereignty,
+    SystemStatic,
     WormholeConnection,
     WormholeType,
 )
@@ -401,6 +404,31 @@ class TestBulkSystemOwners(TestCase):
             bulk_system_owners(systems)
 
         self.assertEqual(len(small_batch.captured_queries), len(large_batch.captured_queries))
+
+
+class TestBulkSystemStatics(TestCase):
+    """TestBulkSystemStatics"""
+
+    def test_resolves_codes_and_leads_to_class(self):
+        system = make_solar_system("Static System", id=31000010, wormhole_class_id_raw=1)
+        SystemStatic.objects.create(solar_system_id=system.id, codes=["Z647", "K162"])
+
+        statics = bulk_system_statics([system.id])
+
+        # Z647 -> C1 (see constants.CODE_TO_CLASS); K162 has no single
+        # destination class, so leads_to_class stays None.
+        self.assertEqual(
+            statics[system.id],
+            [{"code": "Z647", "leads_to_class": 1}, {"code": "K162", "leads_to_class": None}],
+        )
+
+    def test_system_with_no_imported_row_is_absent_from_the_result(self):
+        statics = bulk_system_statics([31000099])
+
+        self.assertEqual(statics, {})
+
+    def test_single_system_statics_defaults_to_empty_list(self):
+        self.assertEqual(single_system_statics(31000099), [])
 
 
 class TestSpaceTypeLabel(TestCase):

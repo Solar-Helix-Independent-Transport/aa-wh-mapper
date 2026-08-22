@@ -24,6 +24,7 @@ from eve_sde.models import ItemType
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
+from ...constants import CODE_TO_CLASS
 from ...models import WormholeType
 
 CODE_PATTERN = re.compile(r"^[A-Z]\d{2,3}$")
@@ -33,37 +34,8 @@ MASS_FRAGMENTS = ("maxstablemass", "wormholemaxmass")
 JUMP_MASS_FRAGMENTS = ("maxjumpmass",)
 STABLE_TIME_FRAGMENTS = ("maxstabletime",)
 
-# leads_to_class has no SDE dogma attribute (see WormholeType's docstring),
-# so it's sourced from zKillboard's setup/sig2class.csv (commit fb8ce9d) - a
-# community-curated code -> destination-class table, same convention/class-
-# numbering as frontend/src/components/wormholeClass.ts's CLASS_LABELS
-# (which that file's own comment cross-checks against the same source).
-# Pochven's code (F216) is deliberately omitted: this codebase has no
-# numeric wormhole_class_id for Pochven (space_type_label detects it by
-# region instead), so there's no class value to assign it.
-_CODE_TO_CLASS_GROUPS: dict[int, tuple[str, ...]] = {
-    1: ("H121", "Z647", "V301", "P060", "Y790", "Q317", "Z971", "E004"),
-    2: ("C125", "D382", "I182", "N766", "D364", "G024", "R943", "L005"),
-    3: ("O883", "O477", "N968", "C247", "M267", "L477", "X702", "Z006"),
-    4: ("M609", "Y683", "T405", "X877", "E175", "Z457", "O128", "M001"),
-    5: ("L614", "N062", "N770", "H900", "H296", "V911", "M555", "C008"),
-    6: ("S804", "R474", "A982", "U574", "V753", "W237", "B041", "U239", "G008"),
-    7: ("N110", "B274", "D845", "S047", "D792", "B520", "A641", "B449", "Q063"),  # High-sec
-    8: ("J244", "A239", "U210", "N290", "C140", "C391", "R051", "N944", "V898"),  # Low-sec
-    9: ("Z060", "E545", "K346", "K329", "Z142", "C248", "V283", "S199", "E587", "Q003"),  # Null-sec
-    12: ("F353", "F135", "T458", "M164", "L031"),  # Thera
-    13: ("A009",),  # C13 (shattered)
-    14: ("S877",),  # Sentinel
-    15: ("B735",),  # Barbican
-    16: ("V928",),  # Vidette
-    17: ("C414",),  # Conflux
-    18: ("R259",),  # Redoubt
-}
-CODE_TO_CLASS: dict[str, int] = {
-    code: class_id
-    for class_id, codes in _CODE_TO_CLASS_GROUPS.items()
-    for code in codes
-}
+# leads_to_class has no SDE dogma attribute (see WormholeType's docstring) -
+# see wh_mapper.constants.CODE_TO_CLASS for where this is sourced from.
 
 
 def _match_value(dogma_rows, fragments):

@@ -1,7 +1,11 @@
 import { createContext, memo, useContext, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { MapSystemOut } from "../api/types";
-import { SPACE_TYPE_CLASS, WORMHOLE_CLASS_DANGER_CSS } from "../constants";
+import type { MapSystemOut, SystemStaticOut } from "../api/types";
+import {
+  SPACE_TYPE_CLASS,
+  STATIC_LEADS_TO_BADGE_CLASS,
+  WORMHOLE_CLASS_DANGER_CSS,
+} from "../constants";
 import { wormholeClassLabel } from "./wormholeClass";
 
 export type SystemNodeCharacter = {
@@ -36,6 +40,23 @@ export function SelectedSystemProvider({
       {children}
     </SelectedSystemIdContext.Provider>
   );
+}
+
+// A static's badge label - the destination class when known (e.g. "C2",
+// "High-sec"), else the raw wormhole type code itself so a static with an
+// unrecognized code (see constants.CODE_TO_CLASS) still shows *something*
+// rather than a blank chip.
+function staticBadgeLabel(wormholeStatic: SystemStaticOut): string {
+  return (
+    wormholeClassLabel(wormholeStatic.leads_to_class) ?? wormholeStatic.code
+  );
+}
+
+function staticBadgeClass(leadsToClass: number | null): string {
+  if (leadsToClass === null) {
+    return "static-badge-unknown";
+  }
+  return STATIC_LEADS_TO_BADGE_CLASS[leadsToClass] ?? "static-badge-unknown";
 }
 
 function SystemNodeImpl({
@@ -107,84 +128,106 @@ function SystemNodeImpl({
       <Handle type="source" position={Position.Left} id="left" />
       <Handle type="target" position={Position.Left} id="left" />
 
-      <div className={`system-node-titlebar ${spaceTypeClass}`}>
-        {system.pinned && (
-          <i
-            className="fas fa-thumbtack system-node-pin"
-            title="Locked home base"
-            aria-hidden="true"
-          />
-        )}
-        {classLabel ? (
-          <span className="system-node-security">{classLabel}</span>
-        ) : (
-          solarSystem.security_status !== null && (
-            <span className="system-node-security">
-              {solarSystem.security_status.toFixed(1)}
+      {/* Direct child of .system-node (not .system-node-inner below), so it
+          can sit outside that div's clipped box (bottom: 100%, see App.css)
+          without being cut off - deliberately "loud": every wormhole
+          system's fixed static connection(s), always visible rather than
+          tucked into a details panel, since where a chain can grow from
+          here is exactly what a chain-mapper needs at a glance. */}
+      {solarSystem.statics.length > 0 && (
+        <div className="system-node-statics">
+          {solarSystem.statics.map((wormholeStatic) => (
+            <span
+              key={wormholeStatic.code}
+              className={`system-node-static ${staticBadgeClass(wormholeStatic.leads_to_class)}`}
+              title={`Static: ${wormholeStatic.code}`}
+            >
+              {staticBadgeLabel(wormholeStatic)}
             </span>
-          )
-        )}
-        <span className="system-node-name">
-          {system.label || solarSystem.name}
-        </span>
-        {solarSystem.owner ? (
-          <span
-            className="system-node-type system-node-owner"
-            title={solarSystem.owner.name}
-          >
-            <img
-              src={solarSystem.owner.icon_url}
-              alt=""
-              className="system-node-owner-icon"
-            />
-            {/* Factions have no ticker (SystemOwnerOut.ticker is null for
-                them) and their full names are too long for this card -
-                icon only, with the name still available via the title
-                tooltip. */}
-            {solarSystem.owner.ticker}
-          </span>
-        ) : (
-          // Skipped for wormholes - the security-status slot and the
-          // titlebar's danger-color stripe already say everything this
-          // badge would ("Wormhole", plus class), so it'd just be noise.
-          solarSystem.space_type !== "Wormhole" && (
-            <span className="system-node-type">{headerTypeLabel}</span>
-          )
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <div className="system-node-body">
-        <div className="system-node-location">
-          {location && <span className="system-node-place">{location}</span>}
-          {solarSystem.visual_effect && (
-            <span className="system-node-effect">
-              {solarSystem.visual_effect}
-            </span>
+      <div className="system-node-inner">
+        <div className={`system-node-titlebar ${spaceTypeClass}`}>
+          {system.pinned && (
+            <i
+              className="fas fa-thumbtack system-node-pin"
+              title="Locked home base"
+              aria-hidden="true"
+            />
           )}
-          {signatureCount > 0 && (
-            <span className="system-node-sigs">
-              {signatureCount} sig{signatureCount === 1 ? "" : "s"}
+          {classLabel ? (
+            <span className="system-node-security">{classLabel}</span>
+          ) : (
+            solarSystem.security_status !== null && (
+              <span className="system-node-security">
+                {solarSystem.security_status.toFixed(1)}
+              </span>
+            )
+          )}
+          <span className="system-node-name">
+            {system.label || solarSystem.name}
+          </span>
+          {solarSystem.owner ? (
+            <span
+              className="system-node-type system-node-owner"
+              title={solarSystem.owner.name}
+            >
+              <img
+                src={solarSystem.owner.icon_url}
+                alt=""
+                className="system-node-owner-icon"
+              />
+              {/* Factions have no ticker (SystemOwnerOut.ticker is null for
+                  them) and their full names are too long for this card -
+                  icon only, with the name still available via the title
+                  tooltip. */}
+              {solarSystem.owner.ticker}
             </span>
+          ) : (
+            // Skipped for wormholes - the security-status slot and the
+            // titlebar's danger-color stripe already say everything this
+            // badge would ("Wormhole", plus class), so it'd just be noise.
+            solarSystem.space_type !== "Wormhole" && (
+              <span className="system-node-type">{headerTypeLabel}</span>
+            )
           )}
         </div>
 
-        {characters.length > 0 && (
-          <div className="system-node-characters">
-            {characters.map((character) => (
-              <div key={character.name} className="system-node-character-row">
-                <span
-                  className={`system-node-character-dot${character.isOwn ? " own" : ""}`}
-                  title={
-                    character.isOwn ? "Your character" : "Tracked character"
-                  }
-                />
-                <span className="system-node-character-name">
-                  {character.name}
-                </span>
-              </div>
-            ))}
+        <div className="system-node-body">
+          <div className="system-node-location">
+            {location && <span className="system-node-place">{location}</span>}
+            {solarSystem.visual_effect && (
+              <span className="system-node-effect">
+                {solarSystem.visual_effect}
+              </span>
+            )}
+            {signatureCount > 0 && (
+              <span className="system-node-sigs">
+                {signatureCount} sig{signatureCount === 1 ? "" : "s"}
+              </span>
+            )}
           </div>
-        )}
+
+          {characters.length > 0 && (
+            <div className="system-node-characters">
+              {characters.map((character) => (
+                <div key={character.name} className="system-node-character-row">
+                  <span
+                    className={`system-node-character-dot${character.isOwn ? " own" : ""}`}
+                    title={
+                      character.isOwn ? "Your character" : "Tracked character"
+                    }
+                  />
+                  <span className="system-node-character-name">
+                    {character.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

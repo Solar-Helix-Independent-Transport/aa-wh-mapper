@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [In Development] - Unreleased
 
+### Added
+
+- Static wormhole connection badges on map system nodes, showing what class(es) each J-space system's fixed static(s) lead to
+  - New `wh_mapper_import_system_statics` management command (see README)
+
 ## [0.0.9] - 2024-06-16
 
 ### Removed

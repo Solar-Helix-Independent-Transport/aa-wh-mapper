@@ -5,6 +5,7 @@ from ninja import NinjaAPI
 from wh_mapper.api import schema
 from wh_mapper.api.helpers import (
     bulk_system_owners,
+    bulk_system_statics,
     can_edit_map,
     connection_to_schema,
     map_to_schema,
@@ -147,14 +148,21 @@ class MapApiEndpoints:
                 last_solar_system_id__in=system_ids,
             ).select_related("character", "last_solar_system__constellation__region")
 
-            # Batched once for the whole map (see bulk_system_owners) rather
-            # than resolved per system, to avoid N+1 queries.
+            # Batched once for the whole map (see bulk_system_owners/
+            # bulk_system_statics) rather than resolved per system, to avoid
+            # N+1 queries.
             owners = bulk_system_owners([s.solar_system for s in systems])
+            statics = bulk_system_statics(system_ids)
 
             return {
                 "map": map_to_schema(map_obj, request),
                 "systems": [
-                    system_to_schema(s, owner=owners.get(s.solar_system_id)) for s in systems
+                    system_to_schema(
+                        s,
+                        owner=owners.get(s.solar_system_id),
+                        statics=statics.get(s.solar_system_id),
+                    )
+                    for s in systems
                 ],
                 "signatures": [signature_to_schema(s) for s in signatures],
                 "connections": [connection_to_schema(c) for c in connections],

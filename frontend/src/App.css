@@ -44,6 +44,17 @@
   opacity: 1;
 }
 
+.map-title,
+.system-node-name,
+.system-node-place,
+.signature-panel-header h3,
+.entry-row-title span,
+.system-node-character-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .map-title {
   min-width: 0;
   margin-left: 12px;
@@ -51,9 +62,6 @@
   border-left: 1px solid var(--border);
   font-size: 16px;
   color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* AppHeader's two zones - left is app-wide navigation (brand, page title,
@@ -184,13 +192,22 @@
   color: var(--text-bright);
 }
 
+.button-primary,
+.new-map-form button,
+.add-signature-form button,
+.paste-signatures-form button,
+.track-character-link,
+.route-finder-pickers button,
+.route-share-button {
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+}
+
 .new-map-form button,
 .button-primary {
   padding: 8px 16px;
   border-radius: 6px;
-  border: 1px solid var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-bright);
 }
 
 .new-map-form button:disabled,
@@ -359,15 +376,24 @@
 /* System nodes */
 
 .system-node {
+  position: relative;
   min-width: 128px;
   max-width: 170px;
   border-radius: 3px;
   border: 1px solid var(--border);
   background: var(--bg-raised);
-  overflow: hidden;
   text-align: left;
   box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.4);
   font-size: 10px;
+}
+
+/* Clips the titlebar's colored background to the card's rounded corners -
+split out from .system-node itself (which stays overflow: visible) so
+.system-node-statics below can sit just outside this box, above the card,
+without being cut off. */
+.system-node-inner {
+  border-radius: inherit;
+  overflow: hidden;
 }
 
 .system-node .react-flow__handle {
@@ -391,16 +417,20 @@
   background: var(--accent-bright);
 }
 
-.edge-label {
-  position: absolute;
+.edge-label,
+.legend-badge {
   padding: 0 3px;
   border-radius: 3px;
   background: var(--bg-raised);
   border: 1px solid var(--border);
   color: var(--text-bright);
   font-size: 9px;
-  font-family: monospace;
+  font-family: var(--mono);
   line-height: 1.4;
+}
+
+.edge-label {
+  position: absolute;
   pointer-events: all;
   white-space: nowrap;
 }
@@ -441,18 +471,31 @@
   position: relative;
 }
 
+.map-legend button,
+.button-secondary,
+.route-toolbar-actions button,
+.route-toolbar > button,
+.fleet-panel-toggle,
+.connection-flag-row button {
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.map-legend button:hover,
+.button-secondary:hover,
+.route-toolbar-actions button:hover,
+.route-toolbar > button:hover,
+.fleet-panel-toggle:hover,
+.connection-flag-row button:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
 .map-legend button {
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-raised);
-  color: var(--text);
   font-size: 13px;
-}
-
-.map-legend button:hover {
-  border-color: var(--accent);
-  color: var(--accent-bright);
 }
 
 .map-legend-popover {
@@ -495,12 +538,29 @@
   color: var(--text-dim);
 }
 
-.map-legend-section ul {
+.map-legend-section ul,
+.entry-list,
+.search-results,
+.context-menu-list,
+.fleet-panel ul,
+.route-contributors-list,
+.connection-details-contributions {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.map-legend-section ul,
+.entry-list,
+.context-menu-list,
+.fleet-panel ul,
+.route-contributors-list,
+.connection-details-contributions {
   display: flex;
   flex-direction: column;
+}
+
+.map-legend-section ul {
   gap: 6px;
 }
 
@@ -545,14 +605,6 @@
 .legend-badge {
   flex-shrink: 0;
   display: inline-block;
-  padding: 0 3px;
-  border-radius: 3px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  color: var(--text-bright);
-  font-size: 9px;
-  font-family: monospace;
-  line-height: 1.4;
   text-align: center;
 }
 
@@ -580,8 +632,8 @@
 }
 
 .system-node-pinned {
-  border-color: #e8b923;
-  box-shadow: 0 0 0 1px #e8b923;
+  border-color: var(--pin);
+  box-shadow: 0 0 0 1px var(--pin);
 }
 
 /* Bulk-selection (box-select/ctrl-click, for multi-delete) - a dashed
@@ -593,8 +645,92 @@ outline so it reads as distinct from system-node-selected's solid ring
 }
 
 .system-node-pin {
-  color: #e8b923;
+  color: var(--pin);
   font-size: 8px;
+}
+
+/* A wormhole system's fixed static connection(s) - see
+wh_mapper.models.SystemStatic - rendered as a row of badges sitting just
+above the card (bottom: 100%, positioned against .system-node's own box -
+see SystemNode.tsx's comment on why this is a sibling of .system-node-inner
+rather than a child of it). Deliberately loud/always-visible rather than
+tucked into a details panel. pointer-events: none on the row (re-enabled per
+badge) so it doesn't intercept clicks/drags meant for the card underneath
+except directly over a badge itself. */
+.system-node-statics {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding-bottom: 3px;
+  pointer-events: none;
+}
+
+.system-node-static {
+  pointer-events: auto;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px -1px rgba(0, 0, 0, 0.5);
+}
+
+/* Same C1->C5+ danger ladder as .wh-class-1..4/.wh-class-dangerous (flat
+colors here rather than a gradient - that's tuned for a full-width titlebar
+stripe, not a small chip) and the same High/Low/Null Sec colors as
+.space-highsec/.space-lowsec/.space-nullsec for a k-space-leading static.
+See constants.ts's STATIC_LEADS_TO_BADGE_CLASS for the leads_to_class -> one
+of these mapping. */
+.static-badge-1 {
+  color: var(--success);
+  background: rgba(74, 222, 128, 0.35);
+}
+
+.static-badge-2 {
+  color: #d4e635;
+  background: rgba(212, 230, 53, 0.35);
+}
+
+.static-badge-3 {
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.35);
+}
+
+.static-badge-4 {
+  color: #ff9854;
+  background: rgba(255, 152, 84, 0.35);
+}
+
+.static-badge-dangerous {
+  color: #ff5c5c;
+  background: rgba(255, 33, 33, 0.4);
+}
+
+.static-badge-highsec {
+  color: var(--success);
+  background: rgba(74, 222, 128, 0.3);
+}
+
+.static-badge-lowsec {
+  color: var(--warning);
+  background: rgba(255, 180, 84, 0.3);
+}
+
+.static-badge-nullsec {
+  color: var(--danger);
+  background: rgba(255, 92, 122, 0.3);
+}
+
+/* Thera-leading statics and any code constants.CODE_TO_CLASS doesn't
+recognize (leads_to_class is null - see SystemStaticOut). */
+.static-badge-unknown {
+  color: var(--text-dim);
+  background: var(--bg-inset);
 }
 
 .system-node-titlebar {
@@ -609,9 +745,6 @@ outline so it reads as distinct from system-node-selected's solid ring
 .system-node-name {
   font-weight: 400;
   font-size: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   /* Overrides the space-type color the titlebar background inherits (see
   .space-highsec etc. below) - only the type badge should carry that
   color-coding, the name itself stays a plain light color. */
@@ -670,9 +803,6 @@ instead of sitting right next to it. */
 
 .system-node-place {
   color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   max-width: 100%;
 }
 
@@ -680,22 +810,22 @@ instead of sitting right next to it. */
 are set by the system's space type - .system-node-name overrides this
 `color` back to a plain light shade so the name itself isn't tinted. */
 .space-highsec {
-  color: #4ade80;
+  color: var(--success);
   background: rgba(74, 222, 128, 0.22);
 }
 
 .space-lowsec {
-  color: #ffb454;
+  color: var(--warning);
   background: rgba(255, 180, 84, 0.22);
 }
 
 .space-nullsec {
-  color: #ff5c7a;
+  color: var(--danger);
   background: rgba(255, 92, 122, 0.22);
 }
 
 .space-wormhole {
-  color: #a68cff;
+  color: var(--accent-bright);
   background: rgba(166, 140, 255, 0.24);
 }
 
@@ -717,7 +847,7 @@ are set by the system's space type - .system-node-name overrides this
 .wh-class-3,
 .wh-class-4,
 .wh-class-dangerous {
-  color: #a68cff;
+  color: var(--accent-bright);
 }
 
 .wh-class-1 {
@@ -838,12 +968,6 @@ are set by the system's space type - .system-node-name overrides this
   font-style: italic;
 }
 
-.system-node-character-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Signature panel */
 
 .resizable-panel-wrapper {
@@ -945,9 +1069,6 @@ are set by the system's space type - .system-node-name overrides this
 
 .signature-panel-header h3 {
   font-size: 19px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .signature-panel-header-actions {
@@ -974,11 +1095,6 @@ are set by the system's space type - .system-node-name overrides this
 }
 
 .entry-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
 }
 
@@ -1023,9 +1139,6 @@ a few characters. */
 .entry-row-title span {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Overrides the flex:1 above - a fixed-size status dot in the title row
@@ -1055,15 +1168,8 @@ action rather than blend in as plain text like .link-button does. */
 .button-secondary {
   padding: 4px 10px;
   border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-raised);
-  color: var(--text);
   font-size: 13px;
-}
-
-.button-secondary:hover {
-  border-color: var(--accent);
-  color: var(--accent-bright);
 }
 
 .toggle-switch {
@@ -1140,9 +1246,6 @@ action rather than blend in as plain text like .link-button does. */
   width: 100%;
   padding: 8px 14px;
   border-radius: 4px;
-  border: 1px solid var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-bright);
   font-size: 14px;
 }
 
@@ -1205,6 +1308,15 @@ action rather than blend in as plain text like .link-button does. */
   flex-shrink: 0;
 }
 
+.sig-type-filter-dropdown,
+.context-menu,
+.context-menu-submenu,
+.route-finder-picker .search-results {
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
 .sig-type-filter-dropdown {
   position: absolute;
   top: 100%;
@@ -1215,10 +1327,7 @@ action rather than blend in as plain text like .link-button does. */
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-raised);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   white-space: nowrap;
   font-size: 13px;
 }
@@ -1244,7 +1353,7 @@ action rather than blend in as plain text like .link-button does. */
   background: var(--bg-inset);
   color: var(--text-bright);
   font-size: 13px;
-  font-family: monospace;
+  font-family: var(--mono);
   resize: vertical;
 }
 
@@ -1252,9 +1361,6 @@ action rather than blend in as plain text like .link-button does. */
   width: 100%;
   padding: 8px 14px;
   border-radius: 4px;
-  border: 1px solid var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-bright);
   font-size: 14px;
 }
 
@@ -1307,12 +1413,7 @@ action rather than blend in as plain text like .link-button does. */
 }
 
 .connection-details-contributions {
-  display: flex;
-  flex-direction: column;
   gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
   font-size: 13px;
 }
 
@@ -1323,9 +1424,6 @@ action rather than blend in as plain text like .link-button does. */
 }
 
 .search-results {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   max-height: 200px;
   overflow-y: auto;
 }
@@ -1373,9 +1471,6 @@ action rather than blend in as plain text like .link-button does. */
   text-align: center;
   padding: 8px 12px;
   border-radius: 6px;
-  border: 1px solid var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-bright);
   text-decoration: none;
 }
 
@@ -1389,19 +1484,8 @@ action rather than blend in as plain text like .link-button does. */
   z-index: 100;
   min-width: 160px;
   padding: 4px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-raised);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   font-size: 13px;
-}
-
-.context-menu-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 .context-menu-separator {
@@ -1457,10 +1541,7 @@ action rather than blend in as plain text like .link-button does. */
   margin-left: 2px;
   min-width: 160px;
   padding: 4px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-raised);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 /* AppHeader's left-zone route links - flat navbar items (see
@@ -1537,16 +1618,8 @@ uses for its own header), not an external sibling. */
 .route-toolbar > button {
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-inset);
-  color: var(--text);
   font-size: 14px;
-}
-
-.route-toolbar-actions button:hover,
-.route-toolbar > button:hover {
-  border-color: var(--accent);
-  color: var(--accent-bright);
 }
 
 .route-toolbar > button:not(:disabled) {
@@ -1604,15 +1677,8 @@ reminder rather than a one-time notice. */
 .fleet-panel-toggle {
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-inset);
-  color: var(--text);
   font-size: 14px;
-}
-
-.fleet-panel-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent-bright);
 }
 
 .fleet-panel {
@@ -1635,11 +1701,6 @@ reminder rather than a one-time notice. */
 }
 
 .fleet-panel ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
   gap: 6px;
 }
 
@@ -1829,10 +1890,7 @@ against its own .resizable-panel-wrapper. */
   right: 0;
   z-index: 5;
   margin-top: 4px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
   background: var(--bg-inset);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .route-finder-selected {
@@ -1865,9 +1923,6 @@ against its own .resizable-panel-wrapper. */
   flex-shrink: 0;
   padding: 9px 18px;
   border-radius: 6px;
-  border: 1px solid var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-bright);
   font-size: 14px;
 }
 
@@ -2138,12 +2193,7 @@ line rather than running together as an undifferentiated pair. */
 }
 
 .route-contributors-list {
-  display: flex;
-  flex-direction: column;
   gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .route-contributors-item {
@@ -2168,9 +2218,6 @@ line rather than running together as an undifferentiated pair. */
   align-self: flex-start;
   padding: 9px 18px;
   border-radius: 6px;
-  border: 1px solid var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-bright);
   font-size: 14px;
 }
 
@@ -2220,15 +2267,8 @@ line rather than running together as an undifferentiated pair. */
 .connection-flag-row button {
   padding: 3px 10px;
   border-radius: 4px;
-  border: 1px solid var(--border);
   background: var(--bg-inset);
-  color: var(--text);
   font-size: 12px;
-}
-
-.connection-flag-row button:hover {
-  border-color: var(--accent);
-  color: var(--accent-bright);
 }
 
 .status-page {
@@ -2314,7 +2354,7 @@ line rather than running together as an undifferentiated pair. */
 }
 
 .status-dot-ok {
-  background: #4ade80;
+  background: var(--success);
 }
 
 .status-dot-bad {

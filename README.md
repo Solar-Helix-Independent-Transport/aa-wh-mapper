@@ -206,6 +206,16 @@ python manage.py wh_mapper_derive_wormhole_types
 
 Re-run this after every SDE re-import to pick up any new wormhole types.
 
+Populate each J-space system's fixed static wormhole connection(s) - shown
+as badges above a system node on the map - with:
+
+```bash
+python manage.py wh_mapper_import_system_statics
+```
+
+This data is bundled with the app (it isn't part of CCP's SDE), so it only
+needs running once; no SDE import required first.
+
 ## Docker
 
 If you're running Alliance Auth via its [official docker-compose setup](https://gitlab.com/allianceauth/allianceauth/-/tree/master/docker), the steps above map onto that repo's `docker/` directory as follows - see its own `docs/installation-containerized/docker.md` for the general custom-package workflow this follows.

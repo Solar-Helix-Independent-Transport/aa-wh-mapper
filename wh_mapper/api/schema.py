@@ -33,6 +33,16 @@ class SystemOwnerOut(Schema):
     icon_url: str
 
 
+class SystemStaticOut(Schema):
+    """One of a J-space system's fixed static wormhole connections - see
+    wh_mapper.models.SystemStatic and wh_mapper.api.helpers.bulk_system_statics.
+    `leads_to_class` is None for a code constants.CODE_TO_CLASS doesn't
+    recognize (a new/unmapped code)."""
+
+    code: str
+    leads_to_class: int | None = None
+
+
 class SolarSystemOut(Schema):
     """A referenced eve_sde.SolarSystem"""
 
@@ -45,6 +55,11 @@ class SolarSystemOut(Schema):
     region_name: str | None = None
     space_type: str
     owner: SystemOwnerOut | None = None
+    # Only populated by callers that batch-resolve it up front (see
+    # solar_system_to_schema's `statics` param, mirroring `owner` above) -
+    # empty (not just unpopulated) for k-space, and for a J-space system
+    # with no imported SystemStatic row.
+    statics: list[SystemStaticOut] = []
 
 
 class MapOut(Schema):

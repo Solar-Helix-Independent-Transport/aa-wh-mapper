@@ -17,6 +17,7 @@ from wh_mapper.models import (
     MapShareGroup,
     MapSystem,
     Signature,
+    SystemStatic,
     TaskHeartbeat,
     TrackedCharacter,
     WormholeConnection,
@@ -237,3 +238,21 @@ class WormholeTypeAdmin(admin.ModelAdmin):
     list_display = ("code", "leads_to_class", "max_mass", "max_jump_mass", "max_stable_time")
     search_fields = ("code", "item_type__name")
     readonly_fields = ("item_type", "code", "max_mass", "max_jump_mass", "max_stable_time")
+
+
+@admin.register(SystemStatic)
+class SystemStaticAdmin(admin.ModelAdmin):
+    """Admin for SystemStatic - `codes` is entirely derived by
+    `wh_mapper_import_system_statics` from the bundled wh_effects.csv
+    snapshot, so there's nothing to add/edit by hand; re-run the command
+    (after refreshing that file from upstream) to pick up changes instead.
+    """
+
+    list_display = ("solar_system_id", "codes", "updated_at")
+    search_fields = ("solar_system_id",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

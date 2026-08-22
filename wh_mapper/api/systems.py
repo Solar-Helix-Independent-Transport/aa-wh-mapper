@@ -12,9 +12,11 @@ from django.shortcuts import get_object_or_404
 from wh_mapper.api import schema
 from wh_mapper.api.helpers import (
     auto_link_stargates,
+    bulk_system_statics,
     require_basic_access,
     require_visible_map,
     single_system_owner,
+    single_system_statics,
     solar_system_to_schema,
     system_to_schema,
     user_display_name,
@@ -40,11 +42,14 @@ class MapSystemApiEndpoints:
             if error:
                 return error
 
-            systems = SolarSystem.objects.filter(
-                name__icontains=query
-            ).select_related("constellation__region")[:limit]
+            systems = list(
+                SolarSystem.objects.filter(name__icontains=query).select_related(
+                    "constellation__region"
+                )[:limit]
+            )
+            statics = bulk_system_statics([s.id for s in systems])
 
-            return [solar_system_to_schema(s) for s in systems]
+            return [solar_system_to_schema(s, statics=statics.get(s.id)) for s in systems]
 
         @api.post(
             "/maps/{map_id}/systems/",
@@ -70,7 +75,11 @@ class MapSystemApiEndpoints:
                 },
             )
 
-            out = system_to_schema(system, owner=single_system_owner(solar_system))
+            out = system_to_schema(
+                system,
+                owner=single_system_owner(solar_system),
+                statics=single_system_statics(solar_system.id),
+            )
 
             if created:
                 broadcast_map_event(map_obj.id, "system.added", out)
@@ -96,7 +105,11 @@ class MapSystemApiEndpoints:
                 setattr(system, field, value)
             system.save()
 
-            out = system_to_schema(system, owner=single_system_owner(system.solar_system))
+            out = system_to_schema(
+                system,
+                owner=single_system_owner(system.solar_system),
+                statics=single_system_statics(system.solar_system_id),
+            )
             broadcast_map_event(map_obj.id, "system.updated", out)
 
             return out

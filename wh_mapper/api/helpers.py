@@ -19,6 +19,7 @@ from allianceauth.eveonline.models import EveAllianceInfo, EveCharacter, EveFact
 # AA WH Mapper App
 from wh_mapper.broadcast import broadcast_map_event, revoke_map_access
 from wh_mapper.constants import (
+    CODE_TO_CLASS,
     CONNECTION_TIME_STATUS_GREEN_THRESHOLD,
     CONNECTION_TIME_STATUS_ORANGE_THRESHOLD,
     DRIFTER_SYSTEM_CLASS,
@@ -40,6 +41,7 @@ from wh_mapper.models import (
     Route,
     Signature,
     SystemSovereignty,
+    SystemStatic,
     TaskHeartbeat,
     TrackedCharacter,
     WormholeConnection,
@@ -270,13 +272,15 @@ def wormhole_class_id(solar_system) -> int | None:
     return WORMHOLE_REGION_LETTER_TO_CLASS.get(region.name[0])
 
 
-def solar_system_to_schema(solar_system, owner=None) -> dict:
+def solar_system_to_schema(solar_system, owner=None, statics=None) -> dict:
     """Serialize an eve_sde.SolarSystem to SolarSystemOut shape.
 
-    `owner` (who controls this space - see bulk_system_owners) is passed in
-    rather than resolved here, so callers that need it for many systems at
-    once (system_to_schema, via get_map_state) can batch-resolve it up front
-    instead of this running one-off queries per system.
+    `owner` (who controls this space - see bulk_system_owners) and `statics`
+    (its fixed static wormhole connections - see bulk_system_statics) are
+    both passed in rather than resolved here, so callers that need them for
+    many systems at once (system_to_schema, via get_map_state) can
+    batch-resolve up front instead of this running one-off queries per
+    system.
     """
 
     constellation = solar_system.constellation
@@ -291,28 +295,31 @@ def solar_system_to_schema(solar_system, owner=None) -> dict:
         "region_name": constellation.region.name if constellation else None,
         "space_type": space_type_label(solar_system),
         "owner": owner,
+        "statics": statics or [],
     }
 
 
-def system_to_schema(system, owner=None) -> dict:
+def system_to_schema(system, owner=None, statics=None) -> dict:
     """Serialize a MapSystem to MapSystemOut shape - see
-    solar_system_to_schema for what `owner` is.
+    solar_system_to_schema for what `owner`/`statics` are.
 
-    `owner` isn't resolved here (see solar_system_to_schema): a caller
+    Neither is resolved here (see solar_system_to_schema): a caller
     serializing a single system (add_system, update_system,
-    wh_mapper.tasks._grow_map_for_character) must pass one explicitly via
-    single_system_owner, not leave it defaulted to None - that default
-    exists only for batch callers that resolve it themselves up front (see
-    get_map_state/bulk_system_owners). Leaving it None on a single-system
-    broadcast (system.added/system.updated) would overwrite a previously-
-    correct owner with null in every other connected client's local state,
-    since the frontend replaces the whole system object on that event.
+    wh_mapper.tasks._grow_map_for_character) must pass them explicitly via
+    single_system_owner/single_system_statics, not leave them defaulted to
+    None - that default exists only for batch callers that resolve them
+    themselves up front (see get_map_state/bulk_system_owners/
+    bulk_system_statics). Leaving `owner` None on a single-system broadcast
+    (system.added/system.updated) would overwrite a previously-correct
+    owner with null in every other connected client's local state, since
+    the frontend replaces the whole system object on that event - `statics`
+    is safe to leave None there since it never changes per-map anyway.
     """
 
     return {
         "id": system.id,
         "map_id": system.map_id,
-        "solar_system": solar_system_to_schema(system.solar_system, owner=owner),
+        "solar_system": solar_system_to_schema(system.solar_system, owner=owner, statics=statics),
         "label": system.label,
         "x": system.x,
         "y": system.y,
@@ -331,6 +338,34 @@ def single_system_owner(solar_system):
     caller."""
 
     return bulk_system_owners([solar_system]).get(solar_system.id)
+
+
+def single_system_statics(solar_system_id: int) -> list[dict]:
+    """bulk_system_statics for exactly one solar_system_id - see
+    single_system_owner for why single-system callers need their own
+    variant rather than always going through the batch version."""
+
+    return bulk_system_statics([solar_system_id]).get(solar_system_id, [])
+
+
+def bulk_system_statics(solar_system_ids) -> dict:
+    """Each given solar_system_id's fixed static wormhole connections, as
+    SystemStaticOut-shaped dicts - a single query regardless of how many
+    ids are passed in (see bulk_system_owners for why this matters for a
+    whole map's worth of systems at once, via get_map_state).
+
+    Returns a dict keyed by solar_system_id, each value a (possibly empty)
+    list - empty for k-space, and for a J-space system with no imported
+    SystemStatic row (see wh_mapper_import_system_statics).
+    """
+
+    rows = SystemStatic.objects.filter(solar_system_id__in=list(solar_system_ids))
+    return {
+        row.solar_system_id: [
+            {"code": code, "leads_to_class": CODE_TO_CLASS.get(code)} for code in row.codes
+        ]
+        for row in rows
+    }
 
 
 def bulk_system_owners(solar_systems) -> dict:

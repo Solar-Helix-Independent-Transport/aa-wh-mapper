@@ -149,6 +149,33 @@ export const WORMHOLE_CLASS_DANGER_CSS: Record<number, string> = {
   18: "wh-class-dangerous",
 };
 
+// Color for a system-node static-connection badge (see SystemNode.tsx), by
+// the static's leads_to_class (SystemStaticOut.leads_to_class) - the same
+// C1-C5+ danger ladder WORMHOLE_CLASS_DANGER_CSS uses for a WH destination,
+// plus High/Low/Null Sec (classes 7/8/9, SPACE_TYPE_CLASS's colors) for a
+// k-space destination. Flat colors rather than reusing the titlebar's
+// wh-class-*/space-* classes directly - those are tuned as a gradient/full-
+// width stripe for the titlebar, not a small chip. Thera (12) and a code
+// with no leads_to_class (unrecognized, or the rare shattered-wormhole edge
+// case) fall back to "static-badge-unknown" (no entry here).
+export const STATIC_LEADS_TO_BADGE_CLASS: Record<number, string> = {
+  1: "static-badge-1",
+  2: "static-badge-2",
+  3: "static-badge-3",
+  4: "static-badge-4",
+  5: "static-badge-dangerous",
+  6: "static-badge-dangerous",
+  13: "static-badge-dangerous",
+  14: "static-badge-dangerous",
+  15: "static-badge-dangerous",
+  16: "static-badge-dangerous",
+  17: "static-badge-dangerous",
+  18: "static-badge-dangerous",
+  7: "static-badge-highsec",
+  8: "static-badge-lowsec",
+  9: "static-badge-nullsec",
+};
+
 // Close codes MapConsumer sends for a deliberate, non-recoverable rejection
 // (see wh_mapper/consumers.py) - retrying without a code/permission change
 // would just hammer the server forever, so these stop the retry loop instead

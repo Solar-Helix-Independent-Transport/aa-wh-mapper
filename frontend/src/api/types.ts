@@ -25,6 +25,14 @@ export interface SystemOwnerOut {
   icon_url: string;
 }
 
+// One of a J-space system's fixed static wormhole connections - see
+// wh_mapper.models.SystemStatic. `leads_to_class` is null for a code
+// wh_mapper's CODE_TO_CLASS table doesn't recognize (a new/unmapped code).
+export interface SystemStaticOut {
+  code: string;
+  leads_to_class: number | null;
+}
+
 export interface SolarSystemOut {
   id: number;
   name: string;
@@ -35,6 +43,10 @@ export interface SolarSystemOut {
   region_name: string | null;
   space_type: string;
   owner: SystemOwnerOut | null;
+  // Only populated by callers that batch-resolve it server-side (the Map
+  // view's get_map_state, add/update system, solar-system search) - empty
+  // for k-space and for a J-space system with no imported statics.
+  statics: SystemStaticOut[];
 }
 
 export interface MapSystemOut {

@@ -125,6 +125,43 @@ DRIFTER_SYSTEM_CLASS = {
     31000006: 18,  # Azdaja Redoubt
 }
 
+# Wormhole type code -> destination class - sourced from zKillboard's
+# setup/sig2class.csv (github.com/zKillboard/zKillboard, commit fb8ce9d), a
+# community-curated table (this has no SDE dogma attribute at all - see
+# wh_mapper.models.WormholeType). Same convention/class-numbering as
+# WORMHOLE_REGION_LETTER_TO_CLASS/DRIFTER_SYSTEM_CLASS above and frontend/
+# src/components/wormholeClass.ts's CLASS_LABELS. Shared by two consumers so
+# both derive the same class for a given code from one table:
+# wh_mapper_derive_wormhole_types (WormholeType.leads_to_class) and
+# wh_mapper.api.helpers.bulk_system_statics (a system's static-connection
+# badges, from wh_mapper.models.SystemStatic). Pochven's code (F216) is
+# deliberately omitted: this codebase has no numeric wormhole_class_id for
+# Pochven (space_type_label detects it by region instead), so there's no
+# class value to assign it.
+_CODE_TO_CLASS_GROUPS: dict[int, tuple[str, ...]] = {
+    1: ("H121", "Z647", "V301", "P060", "Y790", "Q317", "Z971", "E004"),
+    2: ("C125", "D382", "I182", "N766", "D364", "G024", "R943", "L005"),
+    3: ("O883", "O477", "N968", "C247", "M267", "L477", "X702", "Z006"),
+    4: ("M609", "Y683", "T405", "X877", "E175", "Z457", "O128", "M001"),
+    5: ("L614", "N062", "N770", "H900", "H296", "V911", "M555", "C008"),
+    6: ("S804", "R474", "A982", "U574", "V753", "W237", "B041", "U239", "G008"),
+    7: ("N110", "B274", "D845", "S047", "D792", "B520", "A641", "B449", "Q063"),  # High-sec
+    8: ("J244", "A239", "U210", "N290", "C140", "C391", "R051", "N944", "V898"),  # Low-sec
+    9: ("Z060", "E545", "K346", "K329", "Z142", "C248", "V283", "S199", "E587", "Q003"),  # Null-sec
+    12: ("F353", "F135", "T458", "M164", "L031"),  # Thera
+    13: ("A009",),  # C13 (shattered)
+    14: ("S877",),  # Sentinel
+    15: ("B735",),  # Barbican
+    16: ("V928",),  # Vidette
+    17: ("C414",),  # Conflux
+    18: ("R259",),  # Redoubt
+}
+CODE_TO_CLASS: dict[str, int] = {
+    code: class_id
+    for class_id, codes in _CODE_TO_CLASS_GROUPS.items()
+    for code in codes
+}
+
 # Fraction of a wormhole connection's max_stable_time elapsed before its
 # traffic-light status downgrades (green -> orange -> red) - see
 # wh_mapper.api.helpers.connection_time_status.

@@ -11,7 +11,7 @@ from django.utils import timezone
 
 # AA WH Mapper App
 from wh_mapper.constants import MAP_PRESENCE_STALE_AFTER_SECONDS
-from wh_mapper.models import Map, MapPresence
+from wh_mapper.models import Map, MapPresence, SystemStatic
 from wh_mapper.tests.factories import make_user_with_character
 
 
@@ -41,3 +41,28 @@ class TestPruneStaleMapPresenceCommand(TestCase):
         self.assertFalse(MapPresence.objects.filter(pk=stale.pk).exists())
         self.assertTrue(MapPresence.objects.filter(pk=fresh.pk).exists())
         self.assertIn("Pruned 1 stale MapPresence row(s)", out.getvalue())
+
+
+class TestImportSystemStaticsCommand(TestCase):
+    """TestImportSystemStaticsCommand"""
+
+    def test_imports_codes_from_the_bundled_csv_and_is_idempotent(self):
+        out = StringIO()
+        call_command("wh_mapper_import_system_statics", stdout=out)
+
+        self.assertIn("created", out.getvalue())
+        # J105443 (31000007), a plain C1 - single static, per the bundled
+        # data/wh_effects.csv snapshot.
+        self.assertEqual(SystemStatic.objects.get(pk=31000007).codes, ["Z060"])
+        # Thera (31000005) - multiple statics.
+        self.assertEqual(
+            SystemStatic.objects.get(pk=31000005).codes, ["Q063", "V898", "E587"]
+        )
+        total = SystemStatic.objects.count()
+
+        # Re-running is a plain update, not a duplicate insert.
+        out = StringIO()
+        call_command("wh_mapper_import_system_statics", stdout=out)
+
+        self.assertEqual(SystemStatic.objects.count(), total)
+        self.assertIn(f"0 created, {total} updated", out.getvalue())

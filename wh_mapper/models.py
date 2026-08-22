@@ -215,6 +215,42 @@ class WormholeType(models.Model):
         return self.code
 
 
+class SystemStatic(models.Model):
+    """A J-space system's fixed static wormhole connections - which
+    wormhole type code(s) permanently spawn in this specific system (e.g.
+    every "J123456" C3 always rolls a static N968), as opposed to
+    WormholeType, which describes what a *code* is (mass/lifetime/leads-to-
+    class) once scanned. Not part of CCP's SDE either (same as
+    WormholeType - see its docstring): sourced from zKillboard's
+    setup/wh_effects.csv (community-curated) via the
+    wh_mapper_import_system_statics command.
+
+    Soft reference by id only, like SystemSovereignty - this is bulk
+    reference data imported independently of the eve_sde app's own SDE
+    import, not something that should couple this app's migration state to
+    that separate package's.
+    """
+
+    solar_system_id = models.PositiveIntegerField(primary_key=True)
+    # Raw wormhole type codes (e.g. ["N968", "K162"]), not FKs to
+    # WormholeType - that model's rows only exist once
+    # wh_mapper_derive_wormhole_types has run against an imported SDE (see
+    # its docstring), and code isn't even unique there. Resolving a code to
+    # its leads_to_class instead goes through constants.CODE_TO_CLASS (see
+    # wh_mapper.api.helpers.bulk_system_statics), the same source-of-truth
+    # table that command uses.
+    codes = models.JSONField(default=list)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        """Meta definitions"""
+
+        default_permissions = ()
+
+    def __str__(self) -> str:
+        return f"statics for system {self.solar_system_id}: {', '.join(self.codes)}"
+
+
 class Signature(models.Model):
     """A scanned cosmic signature within a MapSystem."""
 

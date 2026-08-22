@@ -73,7 +73,9 @@ class RegionApiEndpoints:
                     return 0.0, 0.0
                 return (
                     (solar_system.x_2d - min_x) / span_x * REGION_IMPORT_LAYOUT_SIZE,
-                    (solar_system.y_2d - min_y) / span_y * REGION_IMPORT_LAYOUT_SIZE,
+                    # SDE position2D is y-up (matches in-game/EVE region maps);
+                    # the canvas is y-down, so flip to avoid an upside-down layout.
+                    (max_y - solar_system.y_2d) / span_y * REGION_IMPORT_LAYOUT_SIZE,
                 )
 
             # Batch-fetched + bulk_created rather than one get_or_create per
