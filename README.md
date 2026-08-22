@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="imgs/YAWN.svg" alt="YAWN logo" width="128" height="128">
+  <img src="https://raw.githubusercontent.com/Solar-Helix-Independent-Transport/aa-wh-mapper/main/imgs/YAWN.svg" alt="YAWN logo" width="128" height="128">
 </p>
 <div align="center">
     <img alt="PyPI Version" src="https://img.shields.io/pypi/v/aa-wh-mapper">
@@ -18,7 +18,7 @@ Y.A.W.N.
 
 **Y**et **A**nother **W**ormhole **N**avigator - a live, collaborative wormhole-chain mapping plugin for [Alliance Auth](https://gitlab.com/allianceauth/allianceauth) (AA) - a Pathfinder/Tripwire-style shared map that a corp or alliance builds up together in real time, with optional live character-location tracking.
 
-![The map view, with a system's signatures/connections open in the side panel](imgs/map.png)
+![The map view, with a system's signatures/connections open in the side panel](https://raw.githubusercontent.com/Solar-Helix-Independent-Transport/aa-wh-mapper/main/imgs/map.png)
 
 ## Why does this exist! XYZ already exists! REEEE *Angry EvE player noises*!
 
@@ -40,11 +40,11 @@ This is unapologetically written from the POV of a WH illiterate Null sec F1/2 M
 
 ### Screenshots
 
-| Sharing a map                                                                          | Global character tracking                                                           |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| ![Sharing a map with a character, corporation, alliance, or group](imgs/map_share.png) | ![Toggling live tracking on/off for authorized characters](imgs/Tracking-Chars.png) |
+| Sharing a map                                                                                                                                                                | Global character tracking                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Sharing a map with a character, corporation, alliance, or group](https://raw.githubusercontent.com/Solar-Helix-Independent-Transport/aa-wh-mapper/main/imgs/map_share.png) | ![Toggling live tracking on/off for authorized characters](https://raw.githubusercontent.com/Solar-Helix-Independent-Transport/aa-wh-mapper/main/imgs/Tracking-Chars.png) |
 
-![Bulk-importing a whole region's systems and stargate connections](imgs/import.png)
+![Bulk-importing a whole region's systems and stargate connections](https://raw.githubusercontent.com/Solar-Helix-Independent-Transport/aa-wh-mapper/main/imgs/import.png)
 _Bulk region import_
 
 # Installation
