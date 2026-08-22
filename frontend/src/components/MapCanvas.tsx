@@ -727,11 +727,26 @@ export function MapCanvas({
   // against removal (see wh_mapper.api.systems.remove_system) - filtering
   // them out here, before xyflow applies the change, keeps them from
   // visually vanishing only to get silently re-added on the next refresh.
+  //
+  // The Backspace/Delete key path is the one place a system/connection gets
+  // removed with no separate confirmation step first (every context-menu
+  // "Delete" action is a deliberate click on that specific label) - a stray
+  // keypress on a multi-selection is too easy to trigger by accident, so
+  // this confirms before letting xyflow proceed, same window.confirm
+  // pattern already used for MapList's map delete/SignaturePanel's bulk
+  // clear.
   const handleBeforeDelete = useCallback<
     OnBeforeDelete<Node<SystemNodeData>, Edge>
   >(async ({ nodes: toDelete, edges: edgesToDelete }) => {
     const deletableNodes = toDelete.filter((node) => !node.data.system.pinned);
     if (deletableNodes.length === 0 && edgesToDelete.length === 0) {
+      return false;
+    }
+    const total = deletableNodes.length + edgesToDelete.length;
+    const confirmed = window.confirm(
+      `Delete ${total} selected item${total === 1 ? "" : "s"}? This can't be undone.`,
+    );
+    if (!confirmed) {
       return false;
     }
     return { nodes: deletableNodes, edges: edgesToDelete };

@@ -12,6 +12,10 @@ interface Props {
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
+  // Default is the fixed 360px shell every existing dialog uses; "large"
+  // (~85vw x 85vh) is for content that needs real room, like the
+  // UniverseRegionsDialog's canvas - see .dialog-large in App.css.
+  size?: "default" | "large";
 }
 
 /** Shared modal shell for every dialog/panel in the app - backdrop click and
@@ -22,7 +26,7 @@ interface Props {
  * propagation shell by hand with none of this - ContextMenu already got
  * Escape/outside-click right for the canvas's right-click menu; this is the
  * equivalent for full dialogs. */
-export function Dialog({ title, onClose, children }: Props) {
+export function Dialog({ title, onClose, children, size = "default" }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,7 +72,7 @@ export function Dialog({ title, onClose, children }: Props) {
     <div className="dialog-backdrop" onClick={onClose}>
       <div
         ref={dialogRef}
-        className="dialog"
+        className={`dialog${size === "large" ? " dialog-large" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}

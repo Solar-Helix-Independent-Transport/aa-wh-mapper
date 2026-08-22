@@ -113,10 +113,10 @@
 }
 
 /* No padding here - AppHeader is the first thing every page under this
-    renders (see AppHeader.tsx), and it needs to sit flush against the
-    viewport edges like a real top bar, not inset by this container's
-    padding. Each page's own content container (.map-list, .status-page,
-    etc.) carries its own padding instead. */
+  renders (see AppHeader.tsx), and it needs to sit flush against the
+  viewport edges like a real top bar, not inset by this container's
+  padding. Each page's own content container (.map-list, .status-page,
+  etc.) carries its own padding instead. */
 .app-main {
   flex: 1;
 }
@@ -472,6 +472,7 @@ without being cut off. */
 }
 
 .map-legend button,
+.universe-legend button,
 .button-secondary,
 .route-toolbar-actions button,
 .route-toolbar > button,
@@ -482,6 +483,7 @@ without being cut off. */
 }
 
 .map-legend button:hover,
+.universe-legend button:hover,
 .button-secondary:hover,
 .route-toolbar-actions button:hover,
 .route-toolbar > button:hover,
@@ -491,7 +493,8 @@ without being cut off. */
   color: var(--accent-bright);
 }
 
-.map-legend button {
+.map-legend button,
+.universe-legend button {
   padding: 6px 14px;
   border-radius: 6px;
   background: var(--bg-raised);
@@ -612,6 +615,197 @@ without being cut off. */
   border-color: var(--danger);
   color: var(--danger);
   font-weight: bold;
+}
+
+.universe-regions-canvas {
+  flex: 1;
+  position: relative;
+}
+
+/* Toggle button + popover, same pattern as .map-legend/.map-legend-popover
+  on the main map canvas - a "Legend" button that pops open a swatch key
+  instead of an always-visible text strip. */
+.universe-legend {
+  position: relative;
+}
+
+.universe-legend-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  display: flex;
+  gap: 24px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.universe-legend-section h5 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.universe-legend-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.universe-legend-section li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.universe-legend-hint {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: normal;
+  max-width: 260px;
+}
+
+/* Always-visible (not tucked behind the Legend toggle) - explains why a
+  found route shows no highlight at all, so that reads as "nothing to
+  highlight here" rather than "this is broken". */
+.universe-no-highlight-hint {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+  color: var(--text-dim);
+  max-width: 420px;
+  text-align: center;
+}
+
+.universe-region-node,
+.universe-landmark-node {
+  position: relative;
+  cursor: pointer;
+}
+
+/* The exact node last clicked (see UniverseRegionsDialog's selectedNodeId) -
+  a distinct glow rather than reusing the touched ring's accent-bright
+  border, so "this is what you clicked" and "this is reached/touched"
+  never look like the same thing on a node that happens to be both. */
+.universe-node-dot-selected {
+  box-shadow: 0 0 0 3px var(--text-bright);
+}
+
+/* Route mode only - the route's own 1-indexed hop number(s) landing in
+  this node, collapsed into "4-7"-style ranges (see collapseHopNumbers).
+  Pill (not a fixed circle, unlike RouteDiagram's .route-node-index) since
+  a range's text is wider than one digit. */
+.universe-node-hop-badge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  z-index: 1;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--bg);
+  color: var(--accent-bright);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.universe-region-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 110px;
+}
+
+/* Pins every edge handle to the dot's own center (6px = half its 12px
+  height/width) instead of xyflow's default Top/Bottom/Right placement,
+  which anchors to the whole node box - dot plus label below it - and
+  would otherwise draw edges into the label. */
+.universe-node-handle {
+  top: 6px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  opacity: 0;
+}
+
+.universe-region-node-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg-inset);
+  border: 2.5px solid var(--text-dim);
+  box-sizing: border-box;
+}
+
+.universe-region-node-dot-touched {
+  border-color: var(--accent-bright);
+}
+
+.universe-region-node-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+
+.universe-region-node-label-touched {
+  color: var(--text-bright);
+}
+
+.universe-landmark-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 130px;
+}
+
+.universe-landmark-node-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--bg-inset);
+  border: 2.5px solid var(--text-dim);
+  box-sizing: border-box;
+}
+
+.universe-landmark-node-dot-touched {
+  border-color: var(--accent-bright);
+}
+
+.universe-landmark-node-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+
+.universe-landmark-node-label-touched {
+  color: var(--text-bright);
 }
 
 .system-node-occupied {
@@ -1387,6 +1581,12 @@ action rather than blend in as plain text like .link-button does. */
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.dialog-large {
+  width: 85vw;
+  height: 85vh;
+  max-height: 85vh;
 }
 
 .dialog input,

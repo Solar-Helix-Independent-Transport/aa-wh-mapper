@@ -1492,6 +1492,27 @@ class TestRegionImport(TestCase):
         names = [r["name"] for r in self.client.get("/wh-mapper/api/regions/").json()]
         self.assertNotIn("Fake WH Region", names)
 
+    def test_universe_regions_graph_includes_flat_excludes_wh(self):
+        response = self.client.get("/wh-mapper/api/universe/regions-graph/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        node_ids = {n["id"] for n in data["nodes"]}
+        self.assertIn(self.region.id, node_ids)
+        self.assertNotIn(self.wh_region.id, node_ids)
+
+        matching_edges = [
+            e
+            for e in data["edges"]
+            if {e["source"], e["target"]} == {
+                self.sys_a.constellation.region_id,
+                self.sys_b.constellation.region_id
+            }
+        ]
+        # sys_a/sys_b are in the same region, so their stargate produces no
+        # cross-region edge.
+        self.assertEqual(matching_edges, [])
+
     def test_importing_a_region_adds_its_systems_and_links_them(self):
         map_id = self.client.post(
             "/wh-mapper/api/maps/",

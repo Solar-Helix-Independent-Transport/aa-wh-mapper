@@ -11,6 +11,7 @@ import type {
   MapStateOut,
   MapSystemOut,
   MapVisibility,
+  RegionGraphOut,
   RegionImportResult,
   RegionOut,
   ShareOut,
@@ -220,6 +221,9 @@ export const trackCharacterUrl = (next?: string) =>
   `${WH_MAPPER_URL_PREFIX}/track/add/${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 
 export const listRegions = () => api.get<RegionOut[]>("/regions/");
+
+export const getUniverseRegionsGraph = () =>
+  api.get<RegionGraphOut>("/universe/regions-graph/");
 
 export const importRegion = (mapId: number, regionId: number) =>
   api.post<RegionImportResult>(`/maps/${mapId}/import-region/`, {

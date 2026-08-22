@@ -190,6 +190,32 @@ export interface RegionOut {
   name: string;
 }
 
+export interface RegionGraphNodeOut {
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+}
+
+export interface RegionGraphEdgeOut {
+  source: number;
+  target: number;
+}
+
+export type RegionGraphLandmarkKind = "thera" | "drifter" | "pochven";
+
+export interface RegionGraphLandmarkOut {
+  id: number;
+  name: string;
+  kind: RegionGraphLandmarkKind;
+}
+
+export interface RegionGraphOut {
+  nodes: RegionGraphNodeOut[];
+  edges: RegionGraphEdgeOut[];
+  landmarks: RegionGraphLandmarkOut[];
+}
+
 export interface RegionImportResult {
   systems_added: number;
   connections_added: number;

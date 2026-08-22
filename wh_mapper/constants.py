@@ -125,6 +125,20 @@ DRIFTER_SYSTEM_CLASS = {
     31000006: 18,  # Azdaja Redoubt
 }
 
+# Thera's own solar_system_id - unlike ordinary J-space systems, every
+# wormhole chain agrees on this one fixed system as "Thera" (it's a single,
+# well-known hub, not a class of interchangeable systems). See
+# wh_mapper.api.helpers.build_region_graph's landmark nodes.
+THERA_SYSTEM_ID = 31000005
+
+# Pochven's real eve_sde.Region id - mirrors eve_sde.models.map's own
+# POCHVEN_REGION_ID (not imported directly - that's a private submodule
+# path, and every other wh_mapper region/system id like DRIFTER_SYSTEM_CLASS
+# and THERA_SYSTEM_ID above is already its own hardcoded constant rather
+# than reaching into eve_sde's internals). See
+# wh_mapper.api.helpers.build_region_graph.
+POCHVEN_REGION_ID = 10000070
+
 # Wormhole type code -> destination class - sourced from zKillboard's
 # setup/sig2class.csv (github.com/zKillboard/zKillboard, commit fb8ce9d), a
 # community-curated table (this has no SDE dogma attribute at all - see

@@ -29,6 +29,7 @@ from allianceauth.eveonline.models import EveAllianceInfo, EveFactionInfo
 from wh_mapper.api.helpers import (
     _contributors_for_connection_ids,
     apply_life_status,
+    build_region_graph,
     bulk_system_owners,
     bulk_system_statics,
     connection_effective_life_status,
@@ -44,7 +45,12 @@ from wh_mapper.api.helpers import (
     space_type_label,
     stargate_connects,
 )
-from wh_mapper.constants import UNKNOWN_STABLE_MAX_HOURS
+from wh_mapper.constants import (
+    DRIFTER_SYSTEM_CLASS,
+    POCHVEN_REGION_ID,
+    THERA_SYSTEM_ID,
+    UNKNOWN_STABLE_MAX_HOURS,
+)
 from wh_mapper.models import (
     Map,
     MapContribution,
@@ -662,6 +668,154 @@ class TestListFlatRegions(TestCase):
 
         region_ids = [r.id for r in list_flat_regions()]
         self.assertIn(pochven_region_id, region_ids)
+
+
+class TestBuildRegionGraph(TestCase):
+    """TestBuildRegionGraph"""
+
+    def test_flat_region_appears_as_a_node(self):
+        system = make_solar_system(
+            "GraphNodeTest", security_status=0.5, x_2d=10.0, y_2d=20.0
+        )
+        graph = build_region_graph()
+        node_ids = [n["id"] for n in graph["nodes"]]
+        self.assertIn(system.constellation.region_id, node_ids)
+
+    def test_wormhole_region_is_excluded_as_a_node(self):
+        system = make_solar_system(
+            "GraphWhNodeTest", id=31000031, security_status=-1.0, wormhole_class_id_raw=3
+        )
+        graph = build_region_graph()
+        node_ids = [n["id"] for n in graph["nodes"]]
+        self.assertNotIn(system.constellation.region_id, node_ids)
+
+    def test_node_position_reflects_relative_centroid(self):
+        low = make_solar_system("GraphLow", security_status=0.5, x_2d=0.0, y_2d=0.0)
+        high = make_solar_system(
+            "GraphHigh", security_status=0.5, x_2d=1000.0, y_2d=1000.0
+        )
+        graph = build_region_graph()
+        by_id = {n["id"]: n for n in graph["nodes"]}
+        low_node = by_id[low.constellation.region_id]
+        high_node = by_id[high.constellation.region_id]
+
+        # Higher raw x_2d scales to a higher canvas x.
+        self.assertLess(low_node["x"], high_node["x"])
+        # SDE position2D is y-up but the canvas is y-down, so the higher
+        # raw y_2d flips to the *smaller* canvas y - same convention
+        # import_region uses.
+        self.assertGreater(low_node["y"], high_node["y"])
+
+    def test_cross_region_stargates_dedupe_to_one_edge(self):
+        region_a = Region.objects.create(id=920001, name="Graph Edge Region A")
+        region_b = Region.objects.create(id=920002, name="Graph Edge Region B")
+        const_a = Constellation.objects.create(
+            id=920003, name="Graph Edge Const A", region=region_a
+        )
+        const_b = Constellation.objects.create(
+            id=920004, name="Graph Edge Const B", region=region_b
+        )
+        sys_a1 = SolarSystem.objects.create(
+            id=920005, name="EdgeA1", constellation=const_a,
+            security_status=0.5, x_2d=0.0, y_2d=0.0,
+        )
+        sys_a2 = SolarSystem.objects.create(
+            id=920006, name="EdgeA2", constellation=const_a,
+            security_status=0.5, x_2d=10.0, y_2d=10.0,
+        )
+        sys_b1 = SolarSystem.objects.create(
+            id=920007, name="EdgeB1", constellation=const_b,
+            security_status=0.5, x_2d=20.0, y_2d=20.0,
+        )
+        # Two separate gates between the same region pair should still
+        # collapse to a single edge.
+        make_stargate(sys_a1, sys_b1)
+        make_stargate(sys_a2, sys_b1)
+
+        graph = build_region_graph()
+        matching_edges = [
+            e
+            for e in graph["edges"]
+            if {e["source"], e["target"]} == {region_a.id, region_b.id}
+        ]
+        self.assertEqual(len(matching_edges), 1)
+
+    def test_same_region_stargate_produces_no_edge(self):
+        region = Region.objects.create(id=920008, name="Graph Same Region")
+        constellation = Constellation.objects.create(
+            id=920009, name="Graph Same Const", region=region
+        )
+        sys_a = SolarSystem.objects.create(
+            id=920010, name="SameA", constellation=constellation,
+            security_status=0.5, x_2d=0.0, y_2d=0.0,
+        )
+        sys_b = SolarSystem.objects.create(
+            id=920011, name="SameB", constellation=constellation,
+            security_status=0.5, x_2d=5.0, y_2d=5.0,
+        )
+        make_stargate(sys_a, sys_b)
+
+        graph = build_region_graph()
+        self.assertFalse(
+            any(region.id in (e["source"], e["target"]) for e in graph["edges"])
+        )
+
+    def test_region_with_no_positioned_systems_is_excluded_as_a_node(self):
+        # A flat region (real k-space id range) where no system carries
+        # both x_2d/y_2d - shouldn't happen for real SDE data, but must not
+        # be plotted at a fake shared (0, 0)-derived point alongside every
+        # other such region.
+        system = make_solar_system(
+            "GraphUnpositionedTest", security_status=0.5, x_2d=None, y_2d=None
+        )
+        graph = build_region_graph()
+        node_ids = [n["id"] for n in graph["nodes"]]
+        self.assertNotIn(system.constellation.region_id, node_ids)
+
+    def test_thera_appears_as_a_landmark(self):
+        make_solar_system("Thera", id=THERA_SYSTEM_ID, security_status=-1.0)
+
+        graph = build_region_graph()
+        thera_landmarks = [
+            landmark for landmark in graph["landmarks"] if landmark["id"] == THERA_SYSTEM_ID
+        ]
+        self.assertEqual(len(thera_landmarks), 1)
+        self.assertEqual(thera_landmarks[0]["kind"], "thera")
+        self.assertEqual(thera_landmarks[0]["name"], "Thera")
+
+    def test_drifter_system_appears_as_a_landmark(self):
+        drifter_id = next(iter(DRIFTER_SYSTEM_CLASS))
+        make_solar_system("SentinelMZ", id=drifter_id, security_status=-1.0)
+
+        graph = build_region_graph()
+        drifter_landmarks = [
+            landmark for landmark in graph["landmarks"] if landmark["id"] == drifter_id
+        ]
+        self.assertEqual(len(drifter_landmarks), 1)
+        self.assertEqual(drifter_landmarks[0]["kind"], "drifter")
+
+    def test_pochven_appears_as_a_landmark_and_not_a_node(self):
+        region = Region.objects.create(id=POCHVEN_REGION_ID, name="Pochven")
+        constellation = Constellation.objects.create(
+            id=930001, name="Pochven Const", region=region
+        )
+        SolarSystem.objects.create(
+            id=930002, name="PochvenSystem", constellation=constellation,
+            security_status=-1.0, wormhole_class_id_raw=25,
+        )
+
+        graph = build_region_graph()
+
+        pochven_landmarks = [
+            landmark
+            for landmark in graph["landmarks"]
+            if landmark["id"] == POCHVEN_REGION_ID
+        ]
+        self.assertEqual(len(pochven_landmarks), 1)
+        self.assertEqual(pochven_landmarks[0]["kind"], "pochven")
+
+        node_ids = [n["id"] for n in graph["nodes"]]
+        self.assertNotIn(POCHVEN_REGION_ID, node_ids)
 
 
 class TestMapLastUpdated(TestCase):

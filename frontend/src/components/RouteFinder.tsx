@@ -20,6 +20,7 @@ import { RouteContributors } from "./RouteContributors";
 import { RouteDiagram } from "./RouteDiagram";
 import { RouteItinerary } from "./RouteItinerary";
 import { SearchResultRow } from "./SearchResultRow";
+import { UniverseRegionsDialog } from "./UniverseRegionsDialog";
 
 /** On-demand, stateless route lookup - see the wayfinder map's tickets
  * 02/04/06/07. Not persisted; "Share this route" (ticket 08/09) promotes a
@@ -37,6 +38,7 @@ export function RouteFinder() {
   const [selectedSystemId, setSelectedSystemId] = useState<number | null>(null);
   const [showingAlternate, setShowingAlternate] = useState(false);
   const [showFleetPanel, setShowFleetPanel] = useState(false);
+  const [showUniverse, setShowUniverse] = useState(false);
 
   const searchSystems = useCallback(
     (value: string) =>
@@ -91,7 +93,13 @@ export function RouteFinder() {
 
   return (
     <div className="route-view">
-      <AppHeader />
+      <AppHeader
+        actions={
+          <button type="button" onClick={() => setShowUniverse(true)}>
+            Universe
+          </button>
+        }
+      />
       <div className="route-toolbar">
         <h2 className="route-toolbar-title">Navigate</h2>
 
@@ -249,6 +257,14 @@ export function RouteFinder() {
           </div>
         </ResizableSidePanel>
       </div>
+
+      {showUniverse && (
+        <UniverseRegionsDialog
+          mode="route"
+          route={displayedRoute ?? null}
+          onClose={() => setShowUniverse(false)}
+        />
+      )}
     </div>
   );
 }

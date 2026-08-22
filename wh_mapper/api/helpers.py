@@ -9,7 +9,7 @@ from eve_sde.models import EveSDE, ItemType, Region, SolarSystem, Stargate
 
 # Django
 from django.db import IntegrityError
-from django.db.models import Count, F, Max, Min, Q
+from django.db.models import Avg, Count, F, Max, Min, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -27,7 +27,10 @@ from wh_mapper.constants import (
     LIFE_STATUS_HOUR_BOUNDS,
     MASS_STATUS_CRITICAL_FRACTION,
     MASS_STATUS_FRESH_FRACTION,
+    POCHVEN_REGION_ID,
+    REGION_IMPORT_LAYOUT_SIZE,
     TASK_EXPECTED_INTERVAL_SECONDS,
+    THERA_SYSTEM_ID,
     UNKNOWN_STABLE_MAX_HOURS,
     WORMHOLE_REGION_LETTER_TO_CLASS,
     WORMHOLE_SPACE_ID_MAX,
@@ -1146,6 +1149,110 @@ def region_to_schema(region) -> dict:
     """Serialize an eve_sde.Region to RegionOut shape"""
 
     return {"id": region.id, "name": region.name}
+
+
+def build_region_graph() -> dict:
+    """Fresh-per-request region-to-region adjacency graph - see wayfinder
+    map .scratch/universe-regions/map.md tickets 01 (adjacency derivation,
+    no caching) and 03 (API contract, server-computed node positions).
+
+    Edges come from cross-region eve_sde.Stargate pairs, mirroring
+    list_flat_regions - every Stargate row already resolves to a flat
+    k-space/Pochven region on both ends (J-space systems have no
+    stargates), so no extra filtering beyond dropping null FKs is needed.
+
+    Pochven is excluded from the main node/edge set (unlike
+    list_flat_regions, which still offers it for map import) and returned
+    instead as a landmark alongside Thera and the five Drifter regions -
+    none of these are ever linked to another flat region by a permanent
+    Stargate (they're only ever reached by wormhole), so they'd otherwise
+    render as centroid-positioned but permanently edge-less nodes. The
+    frontend positions landmarks itself and derives any link from them from
+    the currently open map's own connections - see UniverseRegionsDialog.
+    """
+
+    flat_regions = [
+        region for region in list_flat_regions() if region.id != POCHVEN_REGION_ID
+    ]
+    flat_region_ids = [region.id for region in flat_regions]
+
+    # One Avg() aggregate query rather than pulling ~5k raw SolarSystem
+    # rows into Python - only the ~65-70 per-region centroids are needed,
+    # not the underlying system coordinates themselves.
+    centroids = {
+        row["constellation__region_id"]: (row["avg_x"], row["avg_y"])
+        for row in SolarSystem.objects.filter(
+            constellation__region_id__in=flat_region_ids,
+            x_2d__isnull=False,
+            y_2d__isnull=False,
+        )
+        .values("constellation__region_id")
+        .annotate(avg_x=Avg("x_2d"), avg_y=Avg("y_2d"))
+    }
+
+    xs = [x for x, _y in centroids.values()]
+    ys = [y for _x, y in centroids.values()]
+    min_x, max_x = (min(xs), max(xs)) if xs else (0, 0)
+    min_y, max_y = (min(ys), max(ys)) if ys else (0, 0)
+    span_x = (max_x - min_x) or 1
+    span_y = (max_y - min_y) or 1
+
+    def layout_position(x, y):
+        return (
+            (x - min_x) / span_x * REGION_IMPORT_LAYOUT_SIZE,
+            # SDE position2D is y-up (matches in-game/EVE region maps); the
+            # canvas is y-down, so flip - same convention as import_region.
+            (max_y - y) / span_y * REGION_IMPORT_LAYOUT_SIZE,
+        )
+
+    # A flat region (per list_flat_regions' id-range check) with zero
+    # systems carrying both x_2d/y_2d has no real position to plot - rather
+    # than fake one (e.g. (0, 0), which every such region would then share,
+    # stacking them all on the same point), it's dropped from the graph
+    # entirely, node and edges both.
+    nodes = []
+    positioned_region_ids = set()
+    for region in flat_regions:
+        centroid = centroids.get(region.id)
+        if centroid is None:
+            continue
+        x, y = layout_position(*centroid)
+        nodes.append({"id": region.id, "name": region.name, "x": x, "y": y})
+        positioned_region_ids.add(region.id)
+
+    region_pairs = (
+        Stargate.objects.filter(solar_system__isnull=False, destination__isnull=False)
+        .values_list(
+            "solar_system__constellation__region_id",
+            "destination__constellation__region_id",
+        )
+        .distinct()
+    )
+    edge_pairs = {
+        tuple(sorted((region_a, region_b)))
+        for region_a, region_b in region_pairs
+        if region_a != region_b
+        and region_a in positioned_region_ids
+        and region_b in positioned_region_ids
+    }
+    edges = [{"source": a, "target": b} for a, b in edge_pairs]
+
+    landmarks = []
+    thera = SolarSystem.objects.filter(id=THERA_SYSTEM_ID).first()
+    if thera is not None:
+        landmarks.append({"id": thera.id, "name": thera.name, "kind": "thera"})
+    drifter_systems = SolarSystem.objects.filter(
+        id__in=DRIFTER_SYSTEM_CLASS.keys()
+    ).order_by("id")
+    for drifter_system in drifter_systems:
+        landmarks.append(
+            {"id": drifter_system.id, "name": drifter_system.name, "kind": "drifter"}
+        )
+    pochven = Region.objects.filter(id=POCHVEN_REGION_ID).first()
+    if pochven is not None:
+        landmarks.append({"id": pochven.id, "name": pochven.name, "kind": "pochven"})
+
+    return {"nodes": nodes, "edges": edges, "landmarks": landmarks}
 
 
 def tracked_character_to_schema(tracked) -> dict:

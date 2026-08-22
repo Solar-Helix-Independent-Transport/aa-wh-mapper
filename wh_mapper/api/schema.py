@@ -393,6 +393,51 @@ class RegionOut(Schema):
     name: str
 
 
+class RegionGraphNodeOut(Schema):
+    """One "flat" Region as a node in the universe-regions graph - see
+    wh_mapper.api.helpers.build_region_graph. x/y are a centroid of the
+    region's member systems, pre-scaled into REGION_IMPORT_LAYOUT_SIZE."""
+
+    id: int
+    name: str
+    x: float
+    y: float
+
+
+class RegionGraphEdgeOut(Schema):
+    """A cross-region Stargate pair, deduped to one edge per region pair.
+    source/target match @xyflow's own Edge field names."""
+
+    source: int
+    target: int
+
+
+class RegionGraphLandmarkOut(Schema):
+    """A wormhole-only point of interest - Thera, one of the five Drifter
+    regions, or Pochven - never linked to another flat region by a
+    permanent Stargate, so never part of RegionGraphOut.nodes/edges. Has no
+    server-computed position (see build_region_graph); the frontend lays
+    these out itself, and derives any link from a landmark to a flat region
+    from the currently open map's own connections, not this payload.
+
+    id is a solar_system_id for "thera"/"drifter" (Thera's or a Drifter
+    system's own id), or an eve_sde.Region id for "pochven"."""
+
+    id: int
+    name: str
+    kind: Literal["thera", "drifter", "pochven"]
+
+
+class RegionGraphOut(Schema):
+    """The full region-to-region adjacency graph - not map/route-scoped,
+    highlighting is computed client-side (see wayfinder map
+    .scratch/universe-regions/issues/03-api-contract.md)."""
+
+    nodes: list[RegionGraphNodeOut]
+    edges: list[RegionGraphEdgeOut]
+    landmarks: list[RegionGraphLandmarkOut]
+
+
 class RegionImportRequest(Schema):
     """Payload to bulk-add every system in a Region to a Map"""
 

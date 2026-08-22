@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404
 from wh_mapper.api import schema
 from wh_mapper.api.helpers import (
     auto_link_stargates_bulk,
+    build_region_graph,
     is_region_flat,
     list_flat_regions,
     region_to_schema,
@@ -40,6 +41,18 @@ class RegionApiEndpoints:
             regions = sorted(list_flat_regions(), key=lambda r: r.name)
 
             return [region_to_schema(r) for r in regions]
+
+        @api.get(
+            "/universe/regions-graph/",
+            response={200: schema.RegionGraphOut, 403: str},
+            tags=self.tags,
+        )
+        def universe_regions_graph(request):
+            error = require_basic_access(request)
+            if error:
+                return error
+
+            return build_region_graph()
 
         @api.post(
             "/maps/{map_id}/import-region/",

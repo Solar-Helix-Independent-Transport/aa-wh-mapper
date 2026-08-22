@@ -1,9 +1,10 @@
-{% load i18n %}<!doctype html>
+{% load i18n %}{% load static %}<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block page_title %}{% translate "YAWN" %}{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'wh_mapper/favicon.svg' %}">
     {% include 'bundles/fontawesome.html' %}
     <style>
         html, body {

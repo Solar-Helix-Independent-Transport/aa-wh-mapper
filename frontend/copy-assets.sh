@@ -10,5 +10,6 @@ echo "Copying new assets."
 cp build/static/.vite/manifest.json ../wh_mapper/static/wh_mapper/manifest.json
 cp -r build/static/assets ../wh_mapper/static/wh_mapper/assets
 cp -r build/static/static ../wh_mapper/static/wh_mapper/static
+cp build/static/favicon.svg ../wh_mapper/static/wh_mapper/favicon.svg
 
 echo "Assets copied successfully."

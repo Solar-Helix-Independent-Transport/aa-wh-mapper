@@ -26,6 +26,7 @@ import { SignaturePanel } from "./SignaturePanel";
 import { AddSystemDialog } from "./AddSystemDialog";
 import { ImportRegionDialog } from "./ImportRegionDialog";
 import { ShareDialog } from "./ShareDialog";
+import { UniverseRegionsDialog } from "./UniverseRegionsDialog";
 import { applyMapEvent } from "./mapEvents";
 
 interface Props {
@@ -43,6 +44,7 @@ export function MapView({ mapId }: Props) {
   const [showImportRegion, setShowImportRegion] = useState(false);
   const [showFlags, setShowFlags] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showUniverse, setShowUniverse] = useState(false);
   // A queue, not a single slot: several tracked characters (or the same one,
   // jumping several wormholes back to back) can each generate a prompt
   // before the viewer answers the first one - overwriting a single slot
@@ -276,9 +278,14 @@ export function MapView({ mapId }: Props) {
       <AppHeader
         title={state.map.name}
         actions={
-          <button type="button" onClick={() => openAddSystem()}>
-            + Add system
-          </button>
+          <>
+            <button type="button" onClick={() => openAddSystem()}>
+              + Add system
+            </button>
+            <button type="button" onClick={() => setShowUniverse(true)}>
+              Universe
+            </button>
+          </>
         }
         overflowItems={overflowItems}
         trackedCharacterCount={state.tracked_characters.length}
@@ -362,6 +369,15 @@ export function MapView({ mapId }: Props) {
           connections={state.connections}
           onClose={() => setShowFlags(false)}
           onChanged={refresh}
+        />
+      )}
+
+      {showUniverse && (
+        <UniverseRegionsDialog
+          mode="map"
+          systems={state.systems}
+          connections={state.connections}
+          onClose={() => setShowUniverse(false)}
         />
       )}
 

@@ -6,6 +6,7 @@ import { AppHeader } from "./AppHeader";
 import { DataTable } from "./DataTable";
 import { dataTableColumnHelper } from "./dataTableFeatures";
 import { LoadingState } from "./LoadingState";
+import { UniverseRegionsDialog } from "./UniverseRegionsDialog";
 
 interface Props {
   onOpen: (map: MapOut) => void;
@@ -35,6 +36,7 @@ export function MapList({ onOpen }: Props) {
   const [creating, setCreating] = useState(false);
   const [editingMapId, setEditingMapId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [showUniverse, setShowUniverse] = useState(false);
 
   const refresh = () => {
     listMaps()
@@ -244,7 +246,13 @@ export function MapList({ onOpen }: Props) {
 
   return (
     <>
-      <AppHeader />
+      <AppHeader
+        actions={
+          <button type="button" onClick={() => setShowUniverse(true)}>
+            Universe
+          </button>
+        }
+      />
       <div className="map-list">
         <form className="new-map-form" onSubmit={handleCreate}>
           <input
@@ -282,6 +290,14 @@ export function MapList({ onOpen }: Props) {
           />
         </section>
       </div>
+
+      {showUniverse && (
+        <UniverseRegionsDialog
+          mode="all-maps"
+          maps={maps}
+          onClose={() => setShowUniverse(false)}
+        />
+      )}
     </>
   );
 }
