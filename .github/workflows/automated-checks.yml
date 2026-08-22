@@ -31,25 +31,36 @@ jobs:
       # Checkout the repository
       - name: Checkout
         uses: actions/checkout@v7
-
-      # Set up Python
-#      - name: Set up Python
-#        uses: actions/setup-python@v6
-#        with:
-#          python-version-file: 'pyproject.toml' # Read the Python version from the pyproject.toml file
-
-      # Set up Node.js
-#      - name: Setup Node.js
-#        uses: actions/setup-node@v4
-#        with:
-#          # https://endoflife.date/nodejs
-#          node-version: ${{ env.NODE_VERSION }}
-#          cache: 'npm'
-#          cache-dependency-path: 'package-lock.json'
-#      - run: npm install
-
       - name: Run Pre Commit Checks
         uses: pre-commit/action@v3.0.1
+
+  # Run Frontend (JS) Tests
+  js-test:
+    needs: [ pre-commit ]
+    name: JS Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Set up Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # https://endoflife.date/nodejs
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      # Run the Vitest suite
+      - name: Run JS Tests
+        run: cd frontend && npm test
 
   # Run Test Coverage
   test-coverage:
@@ -62,34 +73,10 @@ jobs:
       matrix:
         python-version:
           # https://endoflife.date/python
-          - '3.10'  # [EOL] End of Life: 31 Oct 2026
           - '3.11'  # [EOL] End of Life: 31 Dec 2027
           - '3.12'  # [EOL] End of Life: 31 Dec 2028
           - '3.13'  # [EOL] End of Life: 31 Oct 2029
           - '3.14'  # [EOL] End of Life: 31 Oct 2030
-#        # MySQL versions to test against
-#        database:
-#          # https://endoflife.date/mysql
-#          - mysql:8.4     # [LTS] Maintained until: 30 Apr 2032
-#          - mysql:9.7     # [LTS] Maintained until: 21 Apr 2034
-#          # https://endoflife.date/mariadb and https://mariadb.com/kb/en/mariadb-server-release-dates/
-#          - mariadb:10.11 # [LTS] Maintained until: 16 Feb 2028
-#          - mariadb:11.4  # [LTS] Maintained until: 29 May 2029
-#          - mariadb:11.8  # [LTS] Maintained until: 04 Jun 2028
-#          - mariadb:12.3  # [LTS] Maintained until: 30 Jun 2029
-#
-##    continue-on-error: ${{ matrix.python-version == '3.12' }}
-#
-#    # Set up services
-#    services:
-#      database:
-#        image: ${{ matrix.database }}
-#        env:
-#          MYSQL_ROOT_PASSWORD: temp_password_aa_tox_tests
-#          MYSQL_DATABASE: tox_allianceauth
-#        ports:
-#          - 3306:3306
-#        options: --tmpfs /var/lib/mysql
 
     steps:
       # Checkout the repository
@@ -125,7 +112,7 @@ jobs:
 #          DB_HOST: 127.0.0.1
 #          DB_USER: root
 #          DB_PASSWORD: temp_password_aa_tox_tests
-#        run: tox -v -e ${{ env.TOX_ENV }}
+#        run: tox -v -e ${{ env.TOX_ENV }} 
         run: tox -v
 
       # Upload coverage to Codecov
@@ -156,7 +143,7 @@ jobs:
 
   # Run PyPi Build Test
   pypi-build-test:
-    needs: [ test-coverage ]
+    needs: [ test-coverage, js-test ]
     name: PyPi Build Test
     runs-on: ubuntu-latest
 

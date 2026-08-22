@@ -26,6 +26,48 @@ function ActiveUsersBadge({ count }: { count: number }) {
   );
 }
 
+// Owns its own keystroke-by-keystroke text instead of lifting it into
+// MapList's state - mineColumns (and therefore this cell's own React
+// element identity) only needs to change when *which* row is being renamed
+// does, not on every keystroke. Previously the input's value lived in
+// MapList itself and was a dependency of mineColumns' useMemo, so typing a
+// single character rebuilt the whole column set and remounted this input -
+// autoFocus masked that as "still works", but the cursor silently jumped to
+// the end of the text after every keystroke instead of staying where you
+// were actually typing.
+function RenameCell({
+  map,
+  onSave,
+  onCancel,
+}: {
+  map: MapOut;
+  onSave: (map: MapOut, name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(map.name);
+  return (
+    <input
+      autoFocus
+      className="map-card-rename-input"
+      value={value}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => setValue(event.target.value)}
+      // Blur saves (if the name actually changed - see saveRename) rather
+      // than discarding the edit, so clicking away commits it the same way
+      // Enter does - there's no separate Save button, so blur has to be the
+      // fallback "commit" gesture, not a silent cancel.
+      onBlur={() => onSave(map, value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        } else if (event.key === "Escape") {
+          onCancel();
+        }
+      }}
+    />
+  );
+}
+
 const mineColumnHelper = dataTableColumnHelper<MapOut>();
 const sharedColumnHelper = dataTableColumnHelper<MapOut>();
 
@@ -35,7 +77,6 @@ export function MapList({ onOpen }: Props) {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingMapId, setEditingMapId] = useState<number | null>(null);
-  const [editName, setEditName] = useState("");
   const [showUniverse, setShowUniverse] = useState(false);
 
   const refresh = () => {
@@ -66,17 +107,15 @@ export function MapList({ onOpen }: Props) {
 
   const startRename = useCallback((map: MapOut) => {
     setEditingMapId(map.id);
-    setEditName(map.name);
   }, []);
 
   const cancelRename = useCallback(() => {
     setEditingMapId(null);
-    setEditName("");
   }, []);
 
   const saveRename = useCallback(
-    async (map: MapOut) => {
-      const trimmed = editName.trim();
+    async (map: MapOut, newName: string) => {
+      const trimmed = newName.trim();
       if (!trimmed || trimmed === map.name) {
         cancelRename();
         return;
@@ -89,7 +128,7 @@ export function MapList({ onOpen }: Props) {
         setError(String(err));
       }
     },
-    [editName, cancelRename],
+    [cancelRename],
   );
 
   const handleDelete = useCallback(async (map: MapOut) => {
@@ -107,11 +146,10 @@ export function MapList({ onOpen }: Props) {
     }
   }, []);
 
-  // Depends on editingMapId/editName (via startRename/saveRename/
-  // cancelRename closing over them) so the rename cell's input re-renders
-  // with the right row in edit mode and the right in-progress text -
-  // StatusPage's module-scope columns can't close over per-render state the
-  // way these need to.
+  // Depends on editingMapId (via RenameCell's own onSave/onCancel props) so
+  // the rename cell renders for the right row - not on the in-progress typed
+  // text, which RenameCell now owns itself (see its own docstring for why
+  // that split matters).
   const mineColumns = useMemo(
     () =>
       mineColumnHelper.columns([
@@ -120,25 +158,10 @@ export function MapList({ onOpen }: Props) {
           cell: (info) => {
             const map = info.row.original;
             return editingMapId === map.id ? (
-              <input
-                autoFocus
-                className="map-card-rename-input"
-                value={editName}
-                onClick={(event) => event.stopPropagation()}
-                onChange={(event) => setEditName(event.target.value)}
-                // Blur saves (if the name actually changed - see
-                // saveRename) rather than discarding the edit, so clicking
-                // away commits it the same way Enter does - there's no
-                // separate Save button, so blur has to be the fallback
-                // "commit" gesture, not a silent cancel.
-                onBlur={() => saveRename(map)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                  } else if (event.key === "Escape") {
-                    cancelRename();
-                  }
-                }}
+              <RenameCell
+                map={map}
+                onSave={saveRename}
+                onCancel={cancelRename}
               />
             ) : (
               <span className="map-card-name">{map.name}</span>
@@ -191,14 +214,7 @@ export function MapList({ onOpen }: Props) {
           },
         }),
       ]),
-    [
-      editingMapId,
-      editName,
-      startRename,
-      cancelRename,
-      saveRename,
-      handleDelete,
-    ],
+    [editingMapId, startRename, cancelRename, saveRename, handleDelete],
   );
 
   const sharedColumns = useMemo(

@@ -1,9 +1,14 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/testSetup.ts"],
+    css: true,
+  },
   // Must match wh_mapper/templates/wh_mapper/index.html's BASE_URL
   // ("{% static 'wh_mapper/' %}", which resolves to STATIC_URL + "wh_mapper/"
   // - "/static/wh_mapper/" for this project's STATIC_URL). That template
