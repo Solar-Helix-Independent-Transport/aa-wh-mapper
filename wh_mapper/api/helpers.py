@@ -226,7 +226,7 @@ def map_to_schema(map_obj: Map, request) -> dict:
         "id": map_obj.id,
         "name": map_obj.name,
         "owner_id": map_obj.owner_id,
-        "owner_name": map_obj.owner.username,
+        "owner_name": user_display_name(map_obj.owner),
         "visibility": map_obj.visibility,
         "read_only": map_obj.read_only,
         "can_write": (

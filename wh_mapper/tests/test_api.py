@@ -98,6 +98,18 @@ class TestMapApi(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([m["id"] for m in response.json()], [map_id])
 
+    def test_owner_name_uses_main_character_not_username(self):
+        self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "My Map", "visibility": "private"}),
+            content_type="application/json",
+        )
+
+        response = self.client.get("/wh-mapper/api/maps/")
+        owner_names = [m["owner_name"] for m in response.json()]
+        self.assertIn(self.alice.profile.main_character.character_name, owner_names)
+        self.assertNotIn(self.alice.username, owner_names)
+
     def test_private_map_hidden_from_other_users(self):
         map_obj = Map.objects.create(name="Alice Only", owner=self.alice)
 

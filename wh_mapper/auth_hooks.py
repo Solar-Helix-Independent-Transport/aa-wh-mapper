@@ -19,7 +19,7 @@ class WhMapperMenuItem(MenuItemHook):
         MenuItemHook.__init__(
             self,
             _("YAWN"),
-            "fas fa-cube fa-fw",
+            "fas fa-route fa-fw",
             "wh_mapper:index",
             navactive=["wh_mapper:"],
         )

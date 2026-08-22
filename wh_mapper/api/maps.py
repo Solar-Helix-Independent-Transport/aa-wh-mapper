@@ -35,7 +35,9 @@ class MapApiEndpoints:
             if error:
                 return error
 
-            maps = Map.objects.visible_to(request.user).select_related("owner")
+            maps = Map.objects.visible_to(request.user).select_related(
+                "owner", "owner__profile__main_character"
+            )
 
             return [map_to_schema(m, request) for m in maps]
 
