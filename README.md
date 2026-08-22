@@ -1,17 +1,22 @@
 <p align="center">
-  <img src="imgs/YAWN.svg" alt="YAWN logo" width="64" height="64">
+  <img src="imgs/YAWN.svg" alt="YAWN logo" width="128" height="128">
 </p>
+<div align="center">
+    <img alt="PyPI Version" src="https://img.shields.io/pypi/v/aa-wh-mapper">
+    <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/Solar-Helix-Independent-Transport/aa-wh-mapper/automated-checks.yml">
+</div>
+<div align="center">
+    <img alt="License" src="https://img.shields.io/badge/license-GPLv3-green">
+    <img alt="python" src="https://img.shields.io/badge/python-3.10-informational">
+    <img alt="django" src="https://img.shields.io/badge/django-5.2-informational">
+    <img alt="pre-commit" src="https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white">
+</div>
 
 <h1 align="center">
-YAWN
+Y.A.W.N.
 </h1>
 
 **Y**et **A**nother **W**ormhole **N**avigator - a live, collaborative wormhole-chain mapping plugin for [Alliance Auth](https://gitlab.com/allianceauth/allianceauth) (AA) - a Pathfinder/Tripwire-style shared map that a corp or alliance builds up together in real time, with optional live character-location tracking.
-
-![License](https://img.shields.io/badge/license-GPLv3-green)
-![python](https://img.shields.io/badge/python-3.10-informational)
-![django](https://img.shields.io/badge/django-5.2-informational)
-![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)
 
 ![The map view, with a system's signatures/connections open in the side panel](imgs/map.png)
 

@@ -15,6 +15,16 @@ from .base import *
 
 PACKAGE = "wh_mapper"
 
+# Use plain StaticFilesStorage so tests don't require a pre-built staticfiles manifest.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.10/howto/static-files/
 # STATICFILES_DIRS = [os.path.join(PROJECT_DIR, f"{PACKAGE}/static")]
