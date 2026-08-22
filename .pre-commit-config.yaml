@@ -258,9 +258,9 @@ repos:
         args:
           - --verbose
 
-  - repo: https://github.com/rbubley/mirrors-prettier
-    rev: "v3.5.0"
+  - repo: local
     hooks:
       - id: prettier
-        additional_dependencies:
-          - "prettier@3.5.0"
+        name: prettier
+        entry: npx prettier@3.5.0 --write --ignore-unknown
+        language: system
