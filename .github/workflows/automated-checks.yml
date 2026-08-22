@@ -26,6 +26,8 @@ jobs:
   pre-commit:
     name: Pre Commit Checks
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_ALLOW_GIT: all
 
     steps:
       # Checkout the repository
