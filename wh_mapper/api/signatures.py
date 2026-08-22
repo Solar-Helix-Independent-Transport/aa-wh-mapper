@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from wh_mapper.api import schema
 from wh_mapper.api.helpers import (
     apply_life_status,
-    require_visible_map,
+    require_writable_map,
     signature_to_schema,
 )
 from wh_mapper.broadcast import broadcast_map_event
@@ -53,7 +53,7 @@ class SignatureApiEndpoints:
         def add_signature(
             request, map_id: int, system_id: int, payload: schema.SignatureCreate
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -95,7 +95,7 @@ class SignatureApiEndpoints:
         def bulk_upsert_signatures(
             request, map_id: int, system_id: int, payload: schema.SignatureBulkUpsert
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -270,7 +270,7 @@ class SignatureApiEndpoints:
             signature_id: int,
             payload: schema.SignatureUpdate,
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -305,7 +305,7 @@ class SignatureApiEndpoints:
         def remove_signature(
             request, map_id: int, system_id: int, signature_id: int
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 

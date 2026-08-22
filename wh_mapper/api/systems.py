@@ -15,6 +15,7 @@ from wh_mapper.api.helpers import (
     bulk_system_statics,
     require_basic_access,
     require_visible_map,
+    require_writable_map,
     single_system_owner,
     single_system_statics,
     solar_system_to_schema,
@@ -57,7 +58,7 @@ class MapSystemApiEndpoints:
             tags=self.tags,
         )
         def add_system(request, map_id: int, payload: schema.MapSystemCreate):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -95,7 +96,7 @@ class MapSystemApiEndpoints:
         def update_system(
             request, map_id: int, system_id: int, payload: schema.MapSystemUpdate
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -143,7 +144,7 @@ class MapSystemApiEndpoints:
             tags=self.tags,
         )
         def remove_system(request, map_id: int, system_id: int):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 

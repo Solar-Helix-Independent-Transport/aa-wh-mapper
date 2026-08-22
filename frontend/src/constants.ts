@@ -74,6 +74,7 @@ export const SHIP_SIZE_LIMITS = [
   "small",
   "medium",
   "large",
+  "xlarge",
   "capital",
 ];
 
@@ -95,7 +96,11 @@ export const SHIP_SIZE_LABEL: Partial<Record<string, string>> = {
   small: "S",
   medium: "M",
   large: "L",
-  capital: "XL",
+  // Was previously mislabeled "XL" before a genuine xlarge choice existed
+  // (see wh_mapper.models.WormholeConnection.ShipSize) - capital gets its
+  // own label now that xlarge isn't just capital's old alias.
+  xlarge: "XL",
+  capital: "Cap",
 };
 
 // <datalist> element ids linking a text input to its suggestions.

@@ -43,6 +43,7 @@ dependencies = [
     "channels-redis",
     "django-eveonline-sde>=0.0.1b11",
     "django-ninja",
+    "httpx",
     "redis",
     # "daphne",
 ]

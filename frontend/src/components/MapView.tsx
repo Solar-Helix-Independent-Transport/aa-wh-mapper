@@ -24,6 +24,7 @@ import { MapCanvas } from "./MapCanvas";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { SignaturePanel } from "./SignaturePanel";
 import { AddSystemDialog } from "./AddSystemDialog";
+import { ImportFromMapDialog } from "./ImportFromMapDialog";
 import { ImportRegionDialog } from "./ImportRegionDialog";
 import { ShareDialog } from "./ShareDialog";
 import { UniverseRegionsDialog } from "./UniverseRegionsDialog";
@@ -42,6 +43,7 @@ export function MapView({ mapId }: Props) {
     { x: number; y: number } | undefined
   >(undefined);
   const [showImportRegion, setShowImportRegion] = useState(false);
+  const [showImportFromMap, setShowImportFromMap] = useState(false);
   const [showFlags, setShowFlags] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showUniverse, setShowUniverse] = useState(false);
@@ -244,15 +246,25 @@ export function MapView({ mapId }: Props) {
     );
   });
 
-  // Flags/Import region/Share/Pending signatures used to sit inline in the
-  // toolbar alongside everything else - the thing that actually made the
-  // old header impractical. These are all secondary/lower-frequency next to
-  // "+ Add system", so they move into AppHeader's overflow menu instead;
-  // Import region and Pending signatures only appear in it at all once
-  // they're relevant (an empty map, or an unidentified connection).
+  // A read-only reference map (the eve-scout Thera/Turnur maps) - true for
+  // everyone except an admin_access user, who still gets the normal
+  // editable UI (see wh_mapper.models.Map.read_only's docstring). Every
+  // edit affordance below is gated on this, mirroring the backend's own
+  // require_writable_map gate on the endpoints those affordances call.
+  const canWrite = state.map.can_write;
+
+  // Flags/Import region/Import from reference map/Share/Pending signatures
+  // used to sit inline in the toolbar alongside everything else - the thing
+  // that actually made the old header impractical. These are all secondary/
+  // lower-frequency next to "+ Add system", so they move into AppHeader's
+  // overflow menu instead; Import region and Pending signatures only appear
+  // in it at all once they're relevant (an empty map, or an unidentified
+  // connection) - Flags stays available even on a read-only map (creating a
+  // flag needs no edit access by design - see wh_mapper.api.flags), the
+  // rest need canWrite.
   const overflowItems: ContextMenuItem[] = [
     { kind: "action", label: "Flags", onClick: () => setShowFlags(true) },
-    ...(state.systems.length === 0
+    ...(canWrite && state.systems.length === 0
       ? [
           {
             kind: "action" as const,
@@ -261,8 +273,25 @@ export function MapView({ mapId }: Props) {
           },
         ]
       : []),
-    { kind: "action", label: "Share", onClick: () => setShowShare(true) },
-    ...(pendingConnections.length > 0
+    ...(canWrite
+      ? [
+          {
+            kind: "action" as const,
+            label: "Import from reference map…",
+            onClick: () => setShowImportFromMap(true),
+          },
+        ]
+      : []),
+    ...(canWrite
+      ? [
+          {
+            kind: "action" as const,
+            label: "Share",
+            onClick: () => setShowShare(true),
+          },
+        ]
+      : []),
+    ...(canWrite && pendingConnections.length > 0
       ? [
           {
             kind: "action" as const,
@@ -279,9 +308,11 @@ export function MapView({ mapId }: Props) {
         title={state.map.name}
         actions={
           <>
-            <button type="button" onClick={() => openAddSystem()}>
-              + Add system
-            </button>
+            {canWrite && (
+              <button type="button" onClick={() => openAddSystem()}>
+                + Add system
+              </button>
+            )}
             <button type="button" onClick={() => setShowUniverse(true)}>
               Universe
             </button>
@@ -301,6 +332,7 @@ export function MapView({ mapId }: Props) {
               onSelectSystem={setSelectedSystemId}
               onAddSystemAt={openAddSystem}
               onMutationError={handleMutationError}
+              readOnly={!canWrite}
             />
             {actionError && (
               <div className="action-error-toast" role="alert">
@@ -331,6 +363,7 @@ export function MapView({ mapId }: Props) {
               onClose={() => setSelectedSystemId(null)}
               onSelectSystem={setSelectedSystemId}
               onSystemCreated={handleSystemCreated}
+              readOnly={!canWrite}
             />
           </ResizableSidePanel>
         </ReactFlowProvider>
@@ -354,6 +387,14 @@ export function MapView({ mapId }: Props) {
         />
       )}
 
+      {showImportFromMap && (
+        <ImportFromMapDialog
+          mapId={mapId}
+          onClose={() => setShowImportFromMap(false)}
+          onImported={refresh}
+        />
+      )}
+
       {showShare && (
         <ShareDialog
           map={state.map}
@@ -369,6 +410,7 @@ export function MapView({ mapId }: Props) {
           connections={state.connections}
           onClose={() => setShowFlags(false)}
           onChanged={refresh}
+          readOnly={!canWrite}
         />
       )}
 

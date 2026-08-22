@@ -24,8 +24,10 @@ class MapQuerySet(models.QuerySet):
     def visible_to(self, user):
         """Maps the user owns, plus shared maps granted to one of their
         characters, that character's corporation, that character's
-        alliance, or a Django group the user belongs to. Superusers see
-        every map.
+        alliance, or a Django group the user belongs to - plus every
+        read_only Map (the eve-scout reference maps), visible to anyone
+        regardless of ownership/sharing since they need no per-user grant
+        (see Map.read_only). Superusers see every map.
         """
 
         if user.is_superuser:
@@ -46,6 +48,7 @@ class MapQuerySet(models.QuerySet):
             | Q(shares__scope=MapShare.Scope.CORPORATION, shares__target_id__in=corporation_ids)
             | Q(shares__scope=MapShare.Scope.ALLIANCE, shares__target_id__in=alliance_ids)
             | Q(group_shares__group__in=user.groups.all())
+            | Q(read_only=True)
         ).distinct()
 
 
@@ -65,6 +68,15 @@ class Map(models.Model):
     visibility = models.CharField(
         max_length=10, choices=Visibility.choices, default=Visibility.PRIVATE
     )
+    # Marks a Map like the eve-scout Thera/Turnur reference maps (see
+    # wh_mapper.tasks.sync_eve_scout_thera_turnur) - kept in sync by a
+    # background task, not meant for anyone to edit by hand. A deliberate,
+    # narrow exception to this app's usual "visible == editable" rule (see
+    # can_edit_map's docstring in wh_mapper.api.helpers): visible_to below
+    # makes a read_only Map visible to every basic_access user with no
+    # MapShare/MapShareGroup needed, and every content-mutation endpoint
+    # (wh_mapper.api.helpers.require_writable_map) rejects non-admins.
+    read_only = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = MapQuerySet.as_manager()
@@ -361,6 +373,12 @@ class WormholeConnection(models.Model):
         SMALL = "small", "Small"
         MEDIUM = "medium", "Medium"
         LARGE = "large", "Large"
+        # Between Large and Capital (e.g. supercarrier-incapable but
+        # freighter/jump-freighter-capable) - eve-scout.com's own
+        # max_ship_size enum distinguishes this from Large, which this app
+        # previously had no matching choice for. max_length=10 below already
+        # fits "xlarge", so no migration is needed for the column itself.
+        XLARGE = "xlarge", "X-Large"
         CAPITAL = "capital", "Capital"
 
     map = models.ForeignKey(Map, on_delete=models.CASCADE, related_name="connections")

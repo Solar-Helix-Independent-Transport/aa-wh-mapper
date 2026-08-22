@@ -6,11 +6,25 @@ export interface MapOut {
   owner_id: number;
   owner_name: string;
   visibility: MapVisibility;
+  // A managed reference map (the eve-scout Thera/Turnur maps) - visible to
+  // everyone, but every content-mutation endpoint rejects non-admins. See
+  // wh_mapper.models.Map.read_only.
+  read_only: boolean;
+  // Whether the current user can actually mutate this map's content right
+  // now - use this (not read_only directly) to gate edit UI, since an
+  // admin can still write to a read_only map.
+  can_write: boolean;
   created_at: string;
   last_updated: string;
   is_owner: boolean;
   can_edit_sharing: boolean;
   active_users: number;
+}
+
+export interface MapImportResult {
+  systems_added: number;
+  connections_added: number;
+  signatures_added: number;
 }
 
 // Who controls a solar system - an NPC empire/pirate faction, or a player

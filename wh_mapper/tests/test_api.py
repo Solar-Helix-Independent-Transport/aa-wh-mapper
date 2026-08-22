@@ -32,6 +32,7 @@ from wh_mapper.models import (
     MapContribution,
     MapPresence,
     MapSystem,
+    Signature,
     TrackedCharacter,
     WormholeConnection,
     WormholeType,
@@ -1568,6 +1569,240 @@ class TestRegionImport(TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 404)
+
+
+class TestReadOnlyMap(TestCase):
+    """TestReadOnlyMap - Map.read_only's enforcement (require_writable_map)
+    and auto-visibility (MapQuerySet.visible_to)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        # The map's own owner isn't special-cased either - only
+        # admin_access bypasses read_only, so this user is used purely to
+        # satisfy Map.owner's FK, never logged in as.
+        cls.owner = make_user_with_character("readonly_owner", 240001)
+        cls.viewer = make_user_with_character("readonly_viewer", 240002)
+        cls.admin = make_user_with_character(
+            "readonly_admin",
+            240003,
+            perms=("wh_mapper.basic_access", "wh_mapper.admin_access"),
+        )
+
+        cls.sys_a = make_solar_system("ReadOnlyA", security_status=0.5)
+        cls.sys_b = make_solar_system("ReadOnlyB", security_status=0.5)
+
+        cls.map = Map.objects.create(
+            name="Read Only Map", owner=cls.owner, read_only=True
+        )
+        cls.map_system_a = MapSystem.objects.create(map=cls.map, solar_system=cls.sys_a)
+        cls.map_system_b = MapSystem.objects.create(map=cls.map, solar_system=cls.sys_b)
+        cls.connection = WormholeConnection.objects.create(
+            map=cls.map, top_system=cls.map_system_a, bottom_system=cls.map_system_b
+        )
+        cls.signature = Signature.objects.create(
+            map_system=cls.map_system_a, signature_id="ABC-123"
+        )
+
+    def setUp(self):
+        self.client.login(username="readonly_viewer", password="test-password")
+
+    def test_visible_to_every_basic_access_user_with_no_share(self):
+        response = self.client.get("/wh-mapper/api/maps/")
+        self.assertIn(self.map.id, [m["id"] for m in response.json()])
+
+    def test_map_out_reports_read_only_and_cannot_write(self):
+        data = self.client.get(f"/wh-mapper/api/maps/{self.map.id}/").json()
+        self.assertTrue(data["read_only"])
+        self.assertFalse(data["can_write"])
+
+    def test_state_is_still_readable(self):
+        response = self.client.get(f"/wh-mapper/api/maps/{self.map.id}/state/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_add_system_is_rejected(self):
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{self.map.id}/systems/",
+            data=json.dumps({"solar_system_id": make_solar_system("ReadOnlyC").id}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_remove_system_is_rejected(self):
+        response = self.client.delete(
+            f"/wh-mapper/api/maps/{self.map.id}/systems/{self.map_system_a.id}/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_add_connection_is_rejected(self):
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{self.map.id}/connections/",
+            data=json.dumps(
+                {
+                    "top_system_id": self.map_system_a.id,
+                    "bottom_system_id": self.map_system_b.id,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_update_connection_is_rejected(self):
+        response = self.client.patch(
+            f"/wh-mapper/api/maps/{self.map.id}/connections/{self.connection.id}/",
+            data=json.dumps({"mass_status": "fresh"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_add_signature_is_rejected(self):
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{self.map.id}/systems/{self.map_system_b.id}/signatures/",
+            data=json.dumps({"signature_id": "XYZ-789"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_update_signature_is_rejected(self):
+        response = self.client.patch(
+            f"/wh-mapper/api/maps/{self.map.id}/systems/{self.map_system_a.id}"
+            f"/signatures/{self.signature.id}/",
+            data=json.dumps({"is_hidden": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_remove_signature_is_rejected(self):
+        response = self.client.delete(
+            f"/wh-mapper/api/maps/{self.map.id}/systems/{self.map_system_a.id}"
+            f"/signatures/{self.signature.id}/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_owner_without_admin_access_is_still_rejected(self):
+        self.client.logout()
+        self.client.login(username="readonly_owner", password="test-password")
+        response = self.client.delete(
+            f"/wh-mapper/api/maps/{self.map.id}/systems/{self.map_system_a.id}/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_access_bypasses_read_only(self):
+        self.client.logout()
+        self.client.login(username="readonly_admin", password="test-password")
+
+        data = self.client.get(f"/wh-mapper/api/maps/{self.map.id}/").json()
+        self.assertTrue(data["can_write"])
+
+        response = self.client.patch(
+            f"/wh-mapper/api/maps/{self.map.id}/connections/{self.connection.id}/",
+            data=json.dumps({"mass_status": "fresh"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+
+class TestImportFromMap(TestCase):
+    """TestImportFromMap"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = make_user_with_character("import_map_owner", 250001)
+        cls.alice = make_user_with_character("import_map_alice", 250002)
+
+        cls.hub = make_solar_system("ImportHub", security_status=0.5)
+        cls.far = make_solar_system("ImportFar", security_status=0.5)
+
+        cls.source_map = Map.objects.create(
+            name="Read Only Source", owner=cls.owner, read_only=True
+        )
+        cls.hub_system = MapSystem.objects.create(
+            map=cls.source_map, solar_system=cls.hub, x=1.0, y=2.0
+        )
+        cls.far_system = MapSystem.objects.create(
+            map=cls.source_map, solar_system=cls.far, x=3.0, y=4.0
+        )
+        cls.source_signature = Signature.objects.create(
+            map_system=cls.hub_system,
+            signature_id="ABC-123",
+            sig_type="wormhole",
+        )
+        cls.source_connection = WormholeConnection.objects.create(
+            map=cls.source_map,
+            top_system=cls.hub_system,
+            bottom_system=cls.far_system,
+            top_signature=cls.source_signature,
+            ship_size_limit="large",
+        )
+
+        cls.not_read_only_map = Map.objects.create(name="Not Read Only", owner=cls.alice)
+
+    def setUp(self):
+        self.client.login(username="import_map_alice", password="test-password")
+
+    def _create_target_map(self) -> int:
+        return self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Import Target"}),
+            content_type="application/json",
+        ).json()["id"]
+
+    def test_imports_systems_signatures_and_connections(self):
+        target_map_id = self._create_target_map()
+
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{target_map_id}/import-from-map/",
+            data=json.dumps({"source_map_id": self.source_map.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"systems_added": 2, "connections_added": 1, "signatures_added": 1},
+        )
+
+        state = self.client.get(f"/wh-mapper/api/maps/{target_map_id}/state/").json()
+        self.assertEqual(len(state["systems"]), 2)
+        self.assertEqual(len(state["connections"]), 1)
+        self.assertEqual(len(state["signatures"]), 1)
+        self.assertEqual(state["connections"][0]["ship_size_limit"], "large")
+        self.assertIsNotNone(state["signatures"][0]["id"])
+
+    def test_re_importing_does_not_duplicate_anything(self):
+        target_map_id = self._create_target_map()
+
+        for _ in range(2):
+            response = self.client.post(
+                f"/wh-mapper/api/maps/{target_map_id}/import-from-map/",
+                data=json.dumps({"source_map_id": self.source_map.id}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(
+            response.json(),
+            {"systems_added": 0, "connections_added": 0, "signatures_added": 0},
+        )
+        state = self.client.get(f"/wh-mapper/api/maps/{target_map_id}/state/").json()
+        self.assertEqual(len(state["systems"]), 2)
+        self.assertEqual(len(state["connections"]), 1)
+        self.assertEqual(len(state["signatures"]), 1)
+
+    def test_importing_from_a_non_read_only_map_is_rejected(self):
+        target_map_id = self._create_target_map()
+
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{target_map_id}/import-from-map/",
+            data=json.dumps({"source_map_id": self.not_read_only_map.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_importing_into_a_read_only_target_is_rejected(self):
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{self.source_map.id}/import-from-map/",
+            data=json.dumps({"source_map_id": self.source_map.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 class TestTrackingApi(TestCase):

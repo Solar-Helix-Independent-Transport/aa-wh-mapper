@@ -8,9 +8,11 @@ from wh_mapper.api.helpers import (
     bulk_system_statics,
     can_edit_map,
     connection_to_schema,
+    import_map_content,
     map_to_schema,
     require_basic_access,
     require_visible_map,
+    require_writable_map,
     revoke_stale_map_access,
     signature_to_schema,
     system_to_schema,
@@ -171,6 +173,28 @@ class MapApiEndpoints:
                 ],
                 "current_user_id": request.user.id,
             }
+
+        @api.post(
+            "/maps/{map_id}/import-from-map/",
+            response={200: schema.MapImportResult, 400: str, 403: str, 404: str},
+            tags=self.tags,
+        )
+        def import_from_map(request, map_id: int, payload: schema.ImportMapRequest):
+            map_obj, error = require_writable_map(request, map_id)
+            if error:
+                return error
+
+            source_map, error = require_visible_map(request, payload.source_map_id)
+            if error:
+                return error
+
+            # Only a read-only reference map (e.g. the eve-scout Thera/
+            # Turnur maps) is a valid import source - this isn't a general
+            # "copy any map I can see into any other" feature.
+            if not source_map.read_only:
+                return 400, "Source map is not a read-only reference map"
+
+            return import_map_content(map_obj, source_map, request.user)
 
 
 def setup(api: NinjaAPI) -> None:

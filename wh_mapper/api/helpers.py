@@ -106,6 +106,26 @@ def require_visible_map(request, map_id: int):
     return get_visible_map(request, map_id)
 
 
+def require_writable_map(request, map_id: int):
+    """require_visible_map, plus reject a read_only Map (the eve-scout
+    Thera/Turnur reference maps - see Map.read_only) for anyone without
+    admin_access. Drop-in replacement for require_visible_map at every
+    endpoint that actually mutates a map's systems/signatures/connections -
+    every read-only endpoint (get_map_state, get_system_details, etc.)
+    keeps using require_visible_map unchanged, since viewing a read_only
+    map is still meant to work for everyone.
+    """
+
+    map_obj, error = require_visible_map(request, map_id)
+    if error:
+        return None, error
+
+    if map_obj.read_only and not request.user.has_perm("wh_mapper.admin_access"):
+        return None, (403, "This map is read-only")
+
+    return map_obj, None
+
+
 def map_visible_to_user(user, map_id: int) -> bool:
     """Admin-access bypass, else Map.visible_to - the single predicate
     shared by get_visible_map (HTTP) and
@@ -207,6 +227,10 @@ def map_to_schema(map_obj: Map, request) -> dict:
         "owner_id": map_obj.owner_id,
         "owner_name": map_obj.owner.username,
         "visibility": map_obj.visibility,
+        "read_only": map_obj.read_only,
+        "can_write": (
+            not map_obj.read_only or request.user.has_perm("wh_mapper.admin_access")
+        ),
         "created_at": map_obj.created_at,
         "last_updated": map_last_updated(map_obj),
         "is_owner": map_obj.owner_id == request.user.id,
@@ -1098,6 +1122,151 @@ def auto_link_stargates_bulk(map_obj, new_systems, user, broadcast: bool = True)
                 )
 
     return created_count
+
+
+def import_map_content(target_map, source_map, user) -> dict:
+    """Bulk-copy every system/signature/connection currently on source_map
+    onto target_map - the "import from a read-only reference map" flow
+    (see wh_mapper.api.maps' import-from-map endpoint), structurally the
+    same bulk-create-then-auto_link shape as import_region (regions.py),
+    but copying from another Map's own rows instead of the SDE, and
+    additionally carrying signature detail across (sig_type, wormhole
+    type, life status) since the source has real scanned data, not just
+    bare systems.
+
+    Idempotent: re-running against the same source/target pair only adds
+    whatever's newly appeared on the source since the last import - an
+    already-imported system/signature/connection is left untouched.
+    """
+
+    source_systems = list(
+        MapSystem.objects.filter(map=source_map).select_related("solar_system")
+    )
+    if not source_systems:
+        return {"systems_added": 0, "connections_added": 0, "signatures_added": 0}
+
+    existing_target_ids = set(
+        MapSystem.objects.filter(
+            map=target_map, solar_system_id__in=[s.solar_system_id for s in source_systems]
+        ).values_list("solar_system_id", flat=True)
+    )
+
+    to_create = [
+        MapSystem(
+            map=target_map,
+            solar_system=s.solar_system,
+            x=s.x,
+            y=s.y,
+            added_by=user,
+        )
+        for s in source_systems
+        if s.solar_system_id not in existing_target_ids
+    ]
+    if to_create:
+        MapSystem.objects.bulk_create(to_create)
+
+    # Re-fetched (rather than trusting bulk_create's pks, or reusing the
+    # source's own MapSystem pks, which belong to a different Map entirely)
+    # so every following step resolves through this one source-solar-
+    # system-id -> target-MapSystem map.
+    target_systems_by_solar_system_id = {
+        ms.solar_system_id: ms
+        for ms in MapSystem.objects.filter(
+            map=target_map,
+            solar_system_id__in=[s.solar_system_id for s in source_systems],
+        )
+    }
+    systems_added = len(to_create)
+
+    source_systems_by_pk = {s.pk: s for s in source_systems}
+    source_signatures = list(
+        Signature.objects.filter(map_system__map=source_map).select_related(
+            "map_system"
+        )
+    )
+
+    signatures_to_create = []
+    for sig in source_signatures:
+        target_system = target_systems_by_solar_system_id[
+            source_systems_by_pk[sig.map_system_id].solar_system_id
+        ]
+        signatures_to_create.append((target_system, sig))
+
+    existing_target_sig_keys = set(
+        Signature.objects.filter(
+            map_system__in=target_systems_by_solar_system_id.values()
+        ).values_list("map_system_id", "signature_id")
+    )
+
+    new_signatures = [
+        Signature(
+            map_system=target_system,
+            signature_id=sig.signature_id,
+            sig_type=sig.sig_type,
+            wormhole_type_id=sig.wormhole_type_id,
+            life_status=sig.life_status,
+            life_status_marked_at=sig.life_status_marked_at,
+        )
+        for target_system, sig in signatures_to_create
+        if (target_system.pk, sig.signature_id) not in existing_target_sig_keys
+    ]
+    if new_signatures:
+        Signature.objects.bulk_create(new_signatures)
+    signatures_added = len(new_signatures)
+
+    # Keyed by (map_system_id, signature_id) rather than the source
+    # Signature's own pk, since that's the one identity that survives the
+    # copy onto a brand-new target Signature row.
+    target_signatures_by_key = {
+        (sig.map_system_id, sig.signature_id): sig
+        for sig in Signature.objects.filter(
+            map_system__in=target_systems_by_solar_system_id.values()
+        )
+    }
+
+    def _target_signature(source_signature):
+        if source_signature is None:
+            return None
+        target_system = target_systems_by_solar_system_id[
+            source_systems_by_pk[source_signature.map_system_id].solar_system_id
+        ]
+        return target_signatures_by_key.get(
+            (target_system.pk, source_signature.signature_id)
+        )
+
+    connections_added = 0
+    source_connections = source_map.connections.select_related(
+        "top_system", "bottom_system", "top_signature", "bottom_signature"
+    )
+    for connection in source_connections:
+        top_target = target_systems_by_solar_system_id[
+            connection.top_system.solar_system_id
+        ]
+        bottom_target = target_systems_by_solar_system_id[
+            connection.bottom_system.solar_system_id
+        ]
+        _, created = get_or_create_connection(
+            target_map.id,
+            top_target,
+            bottom_target,
+            user,
+            connection_type=connection.connection_type,
+            top_signature=_target_signature(connection.top_signature),
+            bottom_signature=_target_signature(connection.bottom_signature),
+            mass_status=connection.mass_status,
+            ship_size_limit=connection.ship_size_limit,
+        )
+        if created:
+            connections_added += 1
+
+    if systems_added or connections_added or signatures_added:
+        broadcast_map_event(target_map.id, "map.resync", {})
+
+    return {
+        "systems_added": systems_added,
+        "connections_added": connections_added,
+        "signatures_added": signatures_added,
+    }
 
 
 def _is_kspace_system_id(system_id: int) -> bool:

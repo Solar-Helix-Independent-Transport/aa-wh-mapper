@@ -131,6 +131,29 @@ DRIFTER_SYSTEM_CLASS = {
 # wh_mapper.api.helpers.build_region_graph's landmark nodes.
 THERA_SYSTEM_ID = 31000005
 
+# Turnur's own solar_system_id - a real k-space (Metropolis) system, not a
+# J-space landmark like Thera, but eve-scout.com tracks it as a second
+# public wormhole hub alongside Thera (see
+# wh_mapper.tasks.sync_eve_scout_thera_turnur).
+TURNUR_SYSTEM_ID = 30002086
+
+# Names of the two read-only reference Maps wh_mapper.tasks.
+# sync_eve_scout_thera_turnur keeps in sync with eve-scout.com's public
+# signature feed - get_or_create'd by name, so the task always finds the
+# same two Maps run over run.
+EVE_SCOUT_THERA_MAP_NAME = "Thera (eve-scout)"
+EVE_SCOUT_TURNUR_MAP_NAME = "Turnur (eve-scout)"
+
+# eve-scout.com's public signatures feed - no auth, no delta/incremental
+# endpoint (every poll re-fetches the full current list of live Thera/
+# Turnur signatures). See wh_mapper.tasks.sync_eve_scout_thera_turnur.
+EVE_SCOUT_API_URL = "https://api.eve-scout.com/v2/public/signatures"
+
+# How far apart (canvas units) each eve-scout hub's live far-end systems
+# are laid out from the hub itself - see
+# wh_mapper.tasks.sync_eve_scout_thera_turnur's radial layout.
+EVE_SCOUT_HUB_RADIUS = 400
+
 # Pochven's real eve_sde.Region id - mirrors eve_sde.models.map's own
 # POCHVEN_REGION_ID (not imported directly - that's a private submodule
 # path, and every other wh_mapper region/system id like DRIFTER_SYSTEM_CLASS
@@ -223,4 +246,5 @@ TASK_EXPECTED_INTERVAL_SECONDS = {
     "refresh_system_sovereignty": 3600,
     "prune_stale_map_presence": 120,
     "prune_stale_routes": 3600,
+    "sync_eve_scout_thera_turnur": 300,
 }

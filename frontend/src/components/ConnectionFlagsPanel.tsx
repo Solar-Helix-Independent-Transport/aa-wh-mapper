@@ -17,6 +17,10 @@ interface Props {
   connections: WormholeConnectionOut[];
   onClose: () => void;
   onChanged: () => void;
+  // A read-only reference map (see wh_mapper.models.Map.read_only) -
+  // accepting/dismissing a flag is still a content mutation, so both are
+  // disabled; viewing pending flags still works.
+  readOnly?: boolean;
 }
 
 interface FlaggedConnection {
@@ -39,6 +43,7 @@ export function ConnectionFlagsPanel({
   connections,
   onClose,
   onChanged,
+  readOnly = false,
 }: Props) {
   const [flagged, setFlagged] = useState<FlaggedConnection[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,14 +117,14 @@ export function ConnectionFlagsPanel({
               </span>
               <button
                 type="button"
-                disabled={busyFlagId === flag.id}
+                disabled={readOnly || busyFlagId === flag.id}
                 onClick={() => handleAccept(flag)}
               >
                 Accept
               </button>
               <button
                 type="button"
-                disabled={busyFlagId === flag.id}
+                disabled={readOnly || busyFlagId === flag.id}
                 onClick={() => handleDismiss(flag)}
               >
                 Dismiss

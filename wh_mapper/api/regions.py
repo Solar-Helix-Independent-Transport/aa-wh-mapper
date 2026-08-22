@@ -16,7 +16,7 @@ from wh_mapper.api.helpers import (
     list_flat_regions,
     region_to_schema,
     require_basic_access,
-    require_visible_map,
+    require_writable_map,
 )
 from wh_mapper.broadcast import broadcast_map_event
 from wh_mapper.constants import REGION_IMPORT_LAYOUT_SIZE
@@ -60,7 +60,7 @@ class RegionApiEndpoints:
             tags=self.tags,
         )
         def import_region(request, map_id: int, payload: schema.RegionImportRequest):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 

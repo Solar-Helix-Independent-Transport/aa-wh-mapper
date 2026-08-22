@@ -180,6 +180,12 @@ CELERYBEAT_SCHEDULE["wh_mapper_prune_stale_routes"] = {
     "task": "wh_mapper.tasks.prune_stale_routes",
     "schedule": crontab(minute="30"),  # deletes any shared Route unviewed for 48h
 }
+CELERYBEAT_SCHEDULE["wh_mapper_sync_eve_scout_thera_turnur"] = {
+    "task": "wh_mapper.tasks.sync_eve_scout_thera_turnur",
+    "schedule": crontab(
+        minute="*/5"
+    ),  # matches eve-scout.com's own 5-minute Cache-Control on its public signatures feed
+}
 ```
 
 ### 5. Grant permissions

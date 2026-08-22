@@ -89,6 +89,12 @@ interface Props {
   // parent surfaces the message and resyncs from the server, since the
   // optimistic UI change already applied here has nothing else to undo it.
   onMutationError: (message: string) => void;
+  // A read-only reference map (see wh_mapper.models.Map.read_only) - every
+  // mutating context-menu item, dragging, connecting, and keyboard delete
+  // is disabled; only view-only actions (Details) remain. The backend
+  // rejects these the same way regardless (require_writable_map), but
+  // hiding them here avoids a confusing "it just 403s" click.
+  readOnly?: boolean;
 }
 
 export function MapCanvas({
@@ -98,6 +104,7 @@ export function MapCanvas({
   onSelectSystem,
   onAddSystemAt,
   onMutationError,
+  readOnly = false,
 }: Props) {
   const { screenToFlowPosition } = useReactFlow();
   const [menu, setMenu] = useState<{
@@ -388,6 +395,9 @@ export function MapCanvas({
   const handlePaneContextMenu = useCallback(
     (event: ReactMouseEvent | MouseEvent) => {
       event.preventDefault();
+      if (readOnly) {
+        return;
+      }
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -404,7 +414,7 @@ export function MapCanvas({
         ],
       });
     },
-    [screenToFlowPosition, onAddSystemAt],
+    [screenToFlowPosition, onAddSystemAt, readOnly],
   );
 
   // Deletes an arbitrary set of nodes/edges - shared by the "Delete N
@@ -472,7 +482,7 @@ export function MapCanvas({
       // usual single-system menu - otherwise there was no way to bulk-delete
       // except the Backspace/Delete key, which isn't very discoverable.
       const { selectedNodes, selectedEdges, selectionCount } = getSelection();
-      if (node.selected && selectionCount > 1) {
+      if (!readOnly && node.selected && selectionCount > 1) {
         setMenu({
           x: event.clientX,
           y: event.clientY,
@@ -501,33 +511,37 @@ export function MapCanvas({
             label: "Details",
             onClick: () => setDetailsSystemId(systemId),
           },
-          { kind: "separator" },
-          {
-            kind: "action",
-            label: pinned ? "Unlock system" : "Lock system (home base)",
-            onClick: () => {
-              updateSystem(mapId, systemId, { pinned: !pinned }).catch((err) =>
-                onMutationError(String(err)),
-              );
-            },
-          },
-          {
-            kind: "action",
-            label: "Delete system",
-            danger: true,
-            // Pinned systems are locked against removal - see
-            // wh_mapper.api.systems.remove_system - so disable this instead
-            // of letting the request fail after the fact.
-            disabled: pinned,
-            onClick: () => {
-              removeSystem(mapId, systemId).catch((err) =>
-                onMutationError(String(err)),
-              );
-              if (selectedSystemId === systemId) {
-                onSelectSystem(null);
-              }
-            },
-          },
+          ...(readOnly
+            ? []
+            : [
+                { kind: "separator" as const },
+                {
+                  kind: "action" as const,
+                  label: pinned ? "Unlock system" : "Lock system (home base)",
+                  onClick: () => {
+                    updateSystem(mapId, systemId, { pinned: !pinned }).catch(
+                      (err) => onMutationError(String(err)),
+                    );
+                  },
+                },
+                {
+                  kind: "action" as const,
+                  label: "Delete system",
+                  danger: true,
+                  // Pinned systems are locked against removal - see
+                  // wh_mapper.api.systems.remove_system - so disable this
+                  // instead of letting the request fail after the fact.
+                  disabled: pinned,
+                  onClick: () => {
+                    removeSystem(mapId, systemId).catch((err) =>
+                      onMutationError(String(err)),
+                    );
+                    if (selectedSystemId === systemId) {
+                      onSelectSystem(null);
+                    }
+                  },
+                },
+              ]),
         ],
       });
     },
@@ -539,6 +553,7 @@ export function MapCanvas({
       getSelection,
       handleDeleteSelection,
       onMutationError,
+      readOnly,
     ],
   );
 
@@ -548,7 +563,7 @@ export function MapCanvas({
 
       // Same "delete the whole selection" shortcut as handleNodeContextMenu.
       const { selectedNodes, selectedEdges, selectionCount } = getSelection();
-      if (edge.selected && selectionCount > 1) {
+      if (!readOnly && edge.selected && selectionCount > 1) {
         setMenu({
           x: event.clientX,
           y: event.clientY,
@@ -572,6 +587,21 @@ export function MapCanvas({
         return;
       }
       const connectionId = connection.id;
+
+      if (readOnly) {
+        setMenu({
+          x: event.clientX,
+          y: event.clientY,
+          items: [
+            {
+              kind: "action",
+              label: "Details",
+              onClick: () => setDetailsConnectionId(connectionId),
+            },
+          ],
+        });
+        return;
+      }
 
       const items: ContextMenuItem[] = [
         {
@@ -676,6 +706,7 @@ export function MapCanvas({
       getSelection,
       handleDeleteSelection,
       onMutationError,
+      readOnly,
     ],
   );
 
@@ -690,6 +721,9 @@ export function MapCanvas({
       selectedNodesFromEvent: Node<SystemNodeData>[],
     ) => {
       event.preventDefault();
+      if (readOnly) {
+        return;
+      }
       const { selectedNodes, selectedEdges, selectionCount } = getSelection(
         selectedNodesFromEvent,
       );
@@ -706,7 +740,7 @@ export function MapCanvas({
         ],
       });
     },
-    [getSelection, handleDeleteSelection],
+    [getSelection, handleDeleteSelection, readOnly],
   );
 
   const handleConnect = useCallback<OnConnect>(
@@ -800,7 +834,9 @@ export function MapCanvas({
         onBeforeDelete={handleBeforeDelete}
         onNodesDelete={handleNodesDelete}
         onEdgesDelete={handleEdgesDelete}
-        deleteKeyCode={["Backspace", "Delete"]}
+        deleteKeyCode={readOnly ? [] : ["Backspace", "Delete"]}
+        nodesDraggable={!readOnly}
+        nodesConnectable={!readOnly}
         snapToGrid
         snapGrid={SNAP_GRID}
         colorMode="dark"

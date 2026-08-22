@@ -48,6 +48,10 @@ interface Props {
   onClose: () => void;
   onSelectSystem: (systemId: number | null) => void;
   onSystemCreated: (system: MapSystemOut) => void;
+  // A read-only reference map (see wh_mapper.models.Map.read_only) - every
+  // add/edit/delete control is disabled or hidden; the list itself stays
+  // fully visible.
+  readOnly?: boolean;
 }
 
 function pluralize(count: number, noun: string): string {
@@ -61,6 +65,7 @@ export function SignaturePanel({
   onClose,
   onSelectSystem,
   onSystemCreated,
+  readOnly = false,
 }: Props) {
   const now = useNow(LIFE_STATUS_CHECK_INTERVAL_MS);
   const [newSigId, setNewSigId] = useState("");
@@ -415,6 +420,7 @@ export function SignaturePanel({
                   <button
                     type="button"
                     className="link-button danger"
+                    disabled={readOnly}
                     onClick={() =>
                       removeSignature(mapId, currentSystemId, sig.id).catch(
                         (err) => setError(String(err)),
@@ -426,6 +432,7 @@ export function SignaturePanel({
                   <button
                     type="button"
                     className="icon-button"
+                    disabled={readOnly}
                     aria-label={
                       sig.is_hidden ? "Unhide signature" : "Hide signature"
                     }
@@ -450,6 +457,7 @@ export function SignaturePanel({
                 <div className="entry-row-controls">
                   <select
                     value={sig.sig_type}
+                    disabled={readOnly}
                     onChange={(event) =>
                       updateSignature(mapId, currentSystemId, sig.id, {
                         sig_type: event.target.value,
@@ -473,6 +481,7 @@ export function SignaturePanel({
                     ) : (
                       <select
                         value={sigLifeStatus}
+                        disabled={readOnly}
                         onChange={(event) =>
                           updateSignature(mapId, currentSystemId, sig.id, {
                             life_status: event.target.value,
@@ -508,6 +517,7 @@ export function SignaturePanel({
                         list={WORMHOLE_TYPE_DATALIST_ID}
                         placeholder="K162 (once identified)"
                         className="mono"
+                        disabled={readOnly}
                         onBlur={(event) => {
                           const code = event.target.value.trim();
                           if (!code) {
@@ -532,7 +542,7 @@ export function SignaturePanel({
                       <span className="dim">
                         → {systemName(otherSystemId(linkedConnection))}
                       </span>
-                    ) : (
+                    ) : readOnly ? null : (
                       <>
                         <button
                           type="button"
@@ -574,95 +584,99 @@ export function SignaturePanel({
           })}
         </ul>
 
-        <form className="add-signature-form" onSubmit={handleAddSignature}>
-          <input
-            type="text"
-            placeholder="ABC-123"
-            className="mono"
-            maxLength={7}
-            value={newSigId}
-            onChange={(event) => setNewSigId(event.target.value)}
-          />
-          <select
-            value={newSigType}
-            onChange={(event) => setNewSigType(event.target.value)}
-          >
-            {SIG_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          {newSigType === "wormhole" && (
-            <>
-              <input
-                type="text"
-                list={WORMHOLE_TYPE_DATALIST_ID}
-                placeholder="K162 (optional)"
-                className="mono"
-                value={newWhCode}
-                onChange={(event) => setNewWhCode(event.target.value)}
-              />
-              <datalist id={WORMHOLE_TYPE_DATALIST_ID}>
-                {wormholeTypeDatalistOptions(wormholeTypes).map((wt) => (
-                  <option
-                    key={wt.code}
-                    value={wt.code}
-                    label={wormholeTypeSummary(wt)}
-                  />
-                ))}
-              </datalist>
-            </>
-          )}
-          <button type="submit">Add</button>
-        </form>
-
-        <form className="paste-signatures-form" onSubmit={handlePasteImport}>
-          <textarea
-            placeholder="Paste probe scan results here (Ctrl+A, Ctrl+C in the Scanner window)…"
-            rows={3}
-            value={pasteText}
-            onChange={(event) => {
-              setPasteText(event.target.value);
-              setPasteMessage(null);
-            }}
-          />
-          <label
-            className="lazy-delete-toggle"
-            title="After importing, remove any signature in this system that isn't in this paste (and any wormhole connection linked to it) — use after a full probe rescan."
-          >
+        {!readOnly && (
+          <form className="add-signature-form" onSubmit={handleAddSignature}>
             <input
-              type="checkbox"
-              checked={lazyDelete}
+              type="text"
+              placeholder="ABC-123"
+              className="mono"
+              maxLength={7}
+              value={newSigId}
+              onChange={(event) => setNewSigId(event.target.value)}
+            />
+            <select
+              value={newSigType}
+              onChange={(event) => setNewSigType(event.target.value)}
+            >
+              {SIG_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            {newSigType === "wormhole" && (
+              <>
+                <input
+                  type="text"
+                  list={WORMHOLE_TYPE_DATALIST_ID}
+                  placeholder="K162 (optional)"
+                  className="mono"
+                  value={newWhCode}
+                  onChange={(event) => setNewWhCode(event.target.value)}
+                />
+                <datalist id={WORMHOLE_TYPE_DATALIST_ID}>
+                  {wormholeTypeDatalistOptions(wormholeTypes).map((wt) => (
+                    <option
+                      key={wt.code}
+                      value={wt.code}
+                      label={wormholeTypeSummary(wt)}
+                    />
+                  ))}
+                </datalist>
+              </>
+            )}
+            <button type="submit">Add</button>
+          </form>
+        )}
+
+        {!readOnly && (
+          <form className="paste-signatures-form" onSubmit={handlePasteImport}>
+            <textarea
+              placeholder="Paste probe scan results here (Ctrl+A, Ctrl+C in the Scanner window)…"
+              rows={3}
+              value={pasteText}
               onChange={(event) => {
-                setLazyDelete(event.target.checked);
-                if (!event.target.checked) {
-                  setRemoveDanglingSystems(false);
-                }
+                setPasteText(event.target.value);
+                setPasteMessage(null);
               }}
             />
-            Lazy delete
-          </label>
-          {lazyDelete && (
             <label
-              className="remove-dangling-systems-toggle"
-              title="Also remove any system that ends up with zero connections after this import (unless it's locked as home base). Removes a whole dead-end chain in one go, not just the immediate neighbor."
+              className="lazy-delete-toggle"
+              title="After importing, remove any signature in this system that isn't in this paste (and any wormhole connection linked to it) — use after a full probe rescan."
             >
               <input
                 type="checkbox"
-                checked={removeDanglingSystems}
-                onChange={(event) =>
-                  setRemoveDanglingSystems(event.target.checked)
-                }
+                checked={lazyDelete}
+                onChange={(event) => {
+                  setLazyDelete(event.target.checked);
+                  if (!event.target.checked) {
+                    setRemoveDanglingSystems(false);
+                  }
+                }}
               />
-              Remove dangling systems
+              Lazy delete
             </label>
-          )}
-          <button type="submit" disabled={!pasteText.trim() && !lazyDelete}>
-            Import
-          </button>
-          {pasteMessage && <span className="dim">{pasteMessage}</span>}
-        </form>
+            {lazyDelete && (
+              <label
+                className="remove-dangling-systems-toggle"
+                title="Also remove any system that ends up with zero connections after this import (unless it's locked as home base). Removes a whole dead-end chain in one go, not just the immediate neighbor."
+              >
+                <input
+                  type="checkbox"
+                  checked={removeDanglingSystems}
+                  onChange={(event) =>
+                    setRemoveDanglingSystems(event.target.checked)
+                  }
+                />
+                Remove dangling systems
+              </label>
+            )}
+            <button type="submit" disabled={!pasteText.trim() && !lazyDelete}>
+              Import
+            </button>
+            {pasteMessage && <span className="dim">{pasteMessage}</span>}
+          </form>
+        )}
       </section>
 
       <section>
@@ -699,6 +713,7 @@ export function SignaturePanel({
                     <button
                       type="button"
                       className="link-button danger"
+                      disabled={readOnly}
                       onClick={() =>
                         removeConnection(mapId, connection.id).catch((err) =>
                           setError(String(err)),
@@ -712,6 +727,7 @@ export function SignaturePanel({
                   <div className="entry-row-controls">
                     <select
                       value={connection.connection_type}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateConnection(mapId, connection.id, {
                           connection_type: event.target.value as ConnectionType,
@@ -728,6 +744,7 @@ export function SignaturePanel({
                       <>
                         <select
                           value={connection.mass_status}
+                          disabled={readOnly}
                           onChange={(event) =>
                             updateConnection(mapId, connection.id, {
                               mass_status: event.target.value,
@@ -751,6 +768,7 @@ export function SignaturePanel({
                         ) : (
                           <select
                             value={connectionLifeStatus}
+                            disabled={readOnly}
                             onChange={(event) =>
                               updateConnection(mapId, connection.id, {
                                 life_status: event.target.value,
@@ -784,6 +802,7 @@ export function SignaturePanel({
                         ) : (
                           <select
                             value={connection.ship_size_limit}
+                            disabled={readOnly}
                             onChange={(event) =>
                               updateConnection(mapId, connection.id, {
                                 ship_size_limit: event.target.value,
@@ -807,32 +826,34 @@ export function SignaturePanel({
         )}
       </section>
 
-      <div className="signature-panel-footer-actions">
-        <button
-          type="button"
-          className="link-button"
-          onClick={() =>
-            updateSystem(mapId, currentSystemId, {
-              pinned: !system.pinned,
-            }).catch((err) => setError(String(err)))
-          }
-        >
-          {system.pinned ? "Unlock system" : "Lock system (home base)"}
-        </button>
-        <button
-          type="button"
-          className="link-button danger"
-          disabled={system.pinned}
-          title={system.pinned ? "Locked - unlock it first" : undefined}
-          onClick={() => {
-            removeSystem(mapId, currentSystemId)
-              .then(onClose)
-              .catch((err) => setError(String(err)));
-          }}
-        >
-          Remove system from map
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="signature-panel-footer-actions">
+          <button
+            type="button"
+            className="link-button"
+            onClick={() =>
+              updateSystem(mapId, currentSystemId, {
+                pinned: !system.pinned,
+              }).catch((err) => setError(String(err)))
+            }
+          >
+            {system.pinned ? "Unlock system" : "Lock system (home base)"}
+          </button>
+          <button
+            type="button"
+            className="link-button danger"
+            disabled={system.pinned}
+            title={system.pinned ? "Locked - unlock it first" : undefined}
+            onClick={() => {
+              removeSystem(mapId, currentSystemId)
+                .then(onClose)
+                .catch((err) => setError(String(err)));
+            }}
+          >
+            Remove system from map
+          </button>
+        </div>
+      )}
 
       {connectSignatureId !== null && (
         <ConnectSignatureDialog

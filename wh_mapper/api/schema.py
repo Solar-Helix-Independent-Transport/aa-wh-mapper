@@ -17,7 +17,7 @@ SignatureTypeLiteral = Literal[
 ]
 LifeStatusLiteral = Literal["stable", "lt_48h", "lt_24h", "lt_12h", "lt_4h", "lt_1h"]
 MassStatusLiteral = Literal["unknown", "fresh", "reduced", "critical"]
-ShipSizeLiteral = Literal["unknown", "small", "medium", "large", "capital"]
+ShipSizeLiteral = Literal["unknown", "small", "medium", "large", "xlarge", "capital"]
 
 
 class SystemOwnerOut(Schema):
@@ -70,6 +70,17 @@ class MapOut(Schema):
     owner_id: int
     owner_name: str
     visibility: Literal["private", "shared"]
+    # A managed reference map (the eve-scout Thera/Turnur maps) - visible to
+    # everyone with basic_access regardless of sharing, and rejects every
+    # content-mutation endpoint for non-admins. See Map.read_only.
+    read_only: bool
+    # Whether *this* requesting user can actually mutate this map's content
+    # right now - true for every ordinary map, false on a read_only map
+    # unless the user has admin_access (mirrors
+    # wh_mapper.api.helpers.require_writable_map exactly). The frontend
+    # gates its edit UI on this, not the raw read_only flag, so an admin
+    # still sees the normal editable UI on a read-only reference map.
+    can_write: bool
     created_at: datetime
     # Latest of created_at, any system added, or any connection/signature
     # edit - see wh_mapper.api.helpers.map_last_updated. Falls back to
@@ -449,6 +460,24 @@ class RegionImportResult(Schema):
 
     systems_added: int
     connections_added: int
+
+
+class ImportMapRequest(Schema):
+    """Payload to bulk-copy every system/signature/connection from another
+    (read-only reference) Map onto this one - see
+    wh_mapper.api.helpers.import_map_content."""
+
+    source_map_id: int
+
+
+class MapImportResult(Schema):
+    """Summary of a map-to-map bulk-import - richer than
+    RegionImportResult since a source Map (unlike an SDE Region) carries
+    real signature detail too."""
+
+    systems_added: int
+    connections_added: int
+    signatures_added: int
 
 
 class RouteLegOut(Schema):

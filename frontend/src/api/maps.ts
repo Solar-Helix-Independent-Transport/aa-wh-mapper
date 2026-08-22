@@ -7,6 +7,7 @@ import type {
   ConnectionType,
   CorporationSearchResult,
   GroupSearchResult,
+  MapImportResult,
   MapOut,
   MapStateOut,
   MapSystemOut,
@@ -228,4 +229,9 @@ export const getUniverseRegionsGraph = () =>
 export const importRegion = (mapId: number, regionId: number) =>
   api.post<RegionImportResult>(`/maps/${mapId}/import-region/`, {
     region_id: regionId,
+  });
+
+export const importFromMap = (mapId: number, sourceMapId: number) =>
+  api.post<MapImportResult>(`/maps/${mapId}/import-from-map/`, {
+    source_map_id: sourceMapId,
   });

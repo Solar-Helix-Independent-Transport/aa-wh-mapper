@@ -11,7 +11,7 @@ from wh_mapper.api.helpers import (
     connection_flag_to_schema,
     connection_to_schema,
     require_basic_access,
-    require_visible_map,
+    require_writable_map,
 )
 from wh_mapper.broadcast import broadcast_map_event
 from wh_mapper.models import ConnectionFlag, WormholeConnection
@@ -94,7 +94,7 @@ class ConnectionFlagApiEndpoints:
             update/delete connection endpoints use, then deletes the flag -
             no history kept, per ticket 11."""
 
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -131,7 +131,7 @@ class ConnectionFlagApiEndpoints:
         def dismiss_connection_flag(
             request, map_id: int, connection_id: int, flag_id: int
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 

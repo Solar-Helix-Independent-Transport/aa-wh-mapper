@@ -10,6 +10,7 @@ from unittest.mock import patch
 from eve_sde.models import ItemCategory, ItemGroup, ItemType
 
 # Django
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
 
@@ -18,13 +19,21 @@ from allianceauth.eveonline.models import EveAllianceInfo, EveFactionInfo
 from esi.exceptions import HTTPClientError, HTTPNotModified, HTTPServerError
 
 # AA WH Mapper App
-from wh_mapper.constants import MAP_PRESENCE_STALE_AFTER_SECONDS, NEW_SYSTEM_OFFSET_X
+from wh_mapper.constants import (
+    EVE_SCOUT_THERA_MAP_NAME,
+    EVE_SCOUT_TURNUR_MAP_NAME,
+    MAP_PRESENCE_STALE_AFTER_SECONDS,
+    NEW_SYSTEM_OFFSET_X,
+    THERA_SYSTEM_ID,
+    TURNUR_SYSTEM_ID,
+)
 from wh_mapper.models import (
     Map,
     MapPresence,
     MapSystem,
     Signature,
     SystemSovereignty,
+    TaskHeartbeat,
     TrackedCharacter,
     WormholeConnection,
     WormholeType,
@@ -37,6 +46,7 @@ from wh_mapper.tasks import (
     poll_tracked_character_locations,
     prune_stale_map_presence,
     refresh_system_sovereignty,
+    sync_eve_scout_thera_turnur,
 )
 from wh_mapper.tests.factories import (
     make_solar_system,
@@ -760,3 +770,161 @@ class TestPollCharacterLocation(TestCase):
         ]
         self.assertTrue(online_transition_calls)
         self.assertTrue(all(call.args[0] == self.map.id for call in online_transition_calls))
+
+
+class TestSyncEveScoutTheraTurnur(TestCase):
+    """TestSyncEveScoutTheraTurnur"""
+
+    def setUp(self):
+        self.owner = User.objects.create_superuser(
+            "evescoutowner", "owner@example.com", "test-password"
+        )
+        self.thera_hub = make_solar_system(
+            "Thera", id=THERA_SYSTEM_ID, security_status=None
+        )
+        self.turnur_hub = make_solar_system(
+            "Turnur", id=TURNUR_SYSTEM_ID, security_status=0.5
+        )
+        self.thera_far = make_solar_system("EveScoutFarThera", security_status=0.5)
+        self.turnur_far = make_solar_system("EveScoutFarTurnur", security_status=0.5)
+
+        category = ItemCategory.objects.create(id=410001, name="Celestial")
+        group = ItemGroup.objects.create(id=989, name="Wormhole", category=category)
+        item_type = ItemType.objects.create(
+            id=40010001, name="Wormhole P060", group=group
+        )
+        self.wormhole_type = WormholeType.objects.create(
+            item_type=item_type, code="P060", max_stable_time=16
+        )
+
+    def _thera_row(self, **overrides):
+        row = {
+            "out_signature": "abc-123",
+            "out_system_id": THERA_SYSTEM_ID,
+            "out_system_name": "Thera",
+            "in_system_id": self.thera_far.id,
+            "in_system_name": self.thera_far.name,
+            "wh_exits_outward": True,
+            "wh_type": "P060",
+            "max_ship_size": "large",
+            "remaining_hours": 10,
+        }
+        row.update(overrides)
+        return row
+
+    def _turnur_row(self, **overrides):
+        row = {
+            "out_signature": "xyz-789",
+            "out_system_id": TURNUR_SYSTEM_ID,
+            "out_system_name": "Turnur",
+            "in_system_id": self.turnur_far.id,
+            "in_system_name": self.turnur_far.name,
+            "wh_exits_outward": False,
+            "wh_type": "K162",
+            "max_ship_size": "xlarge",
+            "remaining_hours": 2,
+        }
+        row.update(overrides)
+        return row
+
+    @patch("wh_mapper.tasks.httpx.get")
+    def test_creates_thera_and_turnur_reference_maps(self, mock_get):
+        mock_get.return_value.json.return_value = [
+            self._thera_row(),
+            self._turnur_row(),
+        ]
+
+        sync_eve_scout_thera_turnur()
+
+        thera_map = Map.objects.get(name=EVE_SCOUT_THERA_MAP_NAME)
+        turnur_map = Map.objects.get(name=EVE_SCOUT_TURNUR_MAP_NAME)
+        self.assertTrue(thera_map.read_only)
+        self.assertTrue(turnur_map.read_only)
+        self.assertEqual(thera_map.owner_id, self.owner.id)
+        self.assertEqual(turnur_map.owner_id, self.owner.id)
+
+        self.assertEqual(MapSystem.objects.filter(map=thera_map).count(), 2)
+        self.assertEqual(MapSystem.objects.filter(map=turnur_map).count(), 2)
+
+        # wh_exits_outward=True - the given wh_type describes the hub-side
+        # signature, so it gets resolved.
+        thera_sig = Signature.objects.get(
+            map_system__map=thera_map, signature_id="ABC-123"
+        )
+        self.assertEqual(thera_sig.wormhole_type_id, self.wormhole_type.id)
+        self.assertEqual(thera_sig.life_status, Signature.LifeStatus.LESS_THAN_12H)
+
+        # wh_exits_outward=False - the hub side is actually the K162 end, so
+        # no wormhole_type is resolved even though wh_type was given.
+        turnur_sig = Signature.objects.get(
+            map_system__map=turnur_map, signature_id="XYZ-789"
+        )
+        self.assertIsNone(turnur_sig.wormhole_type_id)
+        self.assertEqual(turnur_sig.life_status, Signature.LifeStatus.LESS_THAN_4H)
+
+        thera_connection = WormholeConnection.objects.get(map=thera_map)
+        self.assertEqual(thera_connection.ship_size_limit, "large")
+        thera_connection_system_ids = {
+            thera_connection.top_system.solar_system_id,
+            thera_connection.bottom_system.solar_system_id,
+        }
+        self.assertEqual(
+            thera_connection_system_ids, {THERA_SYSTEM_ID, self.thera_far.id}
+        )
+
+        turnur_connection = WormholeConnection.objects.get(map=turnur_map)
+        self.assertEqual(turnur_connection.ship_size_limit, "xlarge")
+
+    @patch("wh_mapper.tasks.httpx.get")
+    def test_second_poll_prunes_signatures_no_longer_live(self, mock_get):
+        mock_get.return_value.json.return_value = [self._thera_row()]
+        sync_eve_scout_thera_turnur()
+
+        thera_map = Map.objects.get(name=EVE_SCOUT_THERA_MAP_NAME)
+        self.assertEqual(Signature.objects.filter(map_system__map=thera_map).count(), 1)
+        self.assertEqual(WormholeConnection.objects.filter(map=thera_map).count(), 1)
+        self.assertEqual(MapSystem.objects.filter(map=thera_map).count(), 2)
+
+        # eve-scout's feed no longer reports this signature - it expired,
+        # completed, or was deleted upstream.
+        mock_get.return_value.json.return_value = []
+        sync_eve_scout_thera_turnur()
+
+        self.assertEqual(Signature.objects.filter(map_system__map=thera_map).count(), 0)
+        self.assertEqual(WormholeConnection.objects.filter(map=thera_map).count(), 0)
+        # The far-end system is pruned too (no remaining connections); the
+        # hub system itself stays.
+        self.assertEqual(MapSystem.objects.filter(map=thera_map).count(), 1)
+
+    @patch("wh_mapper.tasks.httpx.get")
+    def test_re_polling_the_same_signature_does_not_duplicate_anything(self, mock_get):
+        mock_get.return_value.json.return_value = [self._thera_row()]
+        sync_eve_scout_thera_turnur()
+        sync_eve_scout_thera_turnur()
+
+        thera_map = Map.objects.get(name=EVE_SCOUT_THERA_MAP_NAME)
+        self.assertEqual(Signature.objects.filter(map_system__map=thera_map).count(), 1)
+        self.assertEqual(WormholeConnection.objects.filter(map=thera_map).count(), 1)
+        self.assertEqual(MapSystem.objects.filter(map=thera_map).count(), 2)
+
+    @patch("wh_mapper.tasks.httpx.get")
+    def test_fetch_failure_records_a_failed_heartbeat_and_creates_nothing(
+        self, mock_get
+    ):
+        mock_get.return_value.raise_for_status.side_effect = Exception("boom")
+
+        with self.assertRaises(Exception):
+            sync_eve_scout_thera_turnur()
+
+        self.assertFalse(Map.objects.filter(name=EVE_SCOUT_THERA_MAP_NAME).exists())
+        heartbeat = TaskHeartbeat.objects.get(task_name="sync_eve_scout_thera_turnur")
+        self.assertFalse(heartbeat.last_success)
+
+    @patch("wh_mapper.tasks.httpx.get")
+    def test_no_superuser_skips_sync_without_raising(self, mock_get):
+        self.owner.delete()
+        mock_get.return_value.json.return_value = [self._thera_row()]
+
+        sync_eve_scout_thera_turnur()
+
+        self.assertFalse(Map.objects.filter(name=EVE_SCOUT_THERA_MAP_NAME).exists())

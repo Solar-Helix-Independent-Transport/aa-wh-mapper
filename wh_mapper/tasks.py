@@ -3,10 +3,12 @@
 # Standard Library
 import functools
 import logging
+import math
 import traceback
 from datetime import timedelta
 
 # Third Party
+import httpx
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
@@ -15,9 +17,11 @@ from channels.layers import get_channel_layer
 from eve_sde.models import SolarSystem
 
 # Django
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 # Alliance Auth
 from allianceauth.eveonline.models import EveAllianceInfo, EveFactionInfo
@@ -38,6 +42,7 @@ from wh_mapper.api.helpers import (
     connection_wormhole_type,
     fleet_session_to_schema,
     get_or_create_connection,
+    life_status_for_remaining_hours,
     recompute_route,
     remaining_life_hours,
     resolve_fleet_character_name,
@@ -56,6 +61,10 @@ from wh_mapper.broadcast import (
 )
 from wh_mapper.constants import (
     CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS,
+    EVE_SCOUT_API_URL,
+    EVE_SCOUT_HUB_RADIUS,
+    EVE_SCOUT_THERA_MAP_NAME,
+    EVE_SCOUT_TURNUR_MAP_NAME,
     FLEET_POLL_RESCHEDULE_SECONDS,
     FLEET_SCOPES,
     FLEET_SESSION_FAILURE_THRESHOLD,
@@ -63,6 +72,8 @@ from wh_mapper.constants import (
     MAP_PRESENCE_STALE_AFTER_SECONDS,
     NEW_SYSTEM_OFFSET_X,
     ROUTE_STALE_AFTER_SECONDS,
+    THERA_SYSTEM_ID,
+    TURNUR_SYSTEM_ID,
 )
 from wh_mapper.consumers import _group_name
 from wh_mapper.models import (
@@ -77,6 +88,7 @@ from wh_mapper.models import (
     TaskHeartbeat,
     TrackedCharacter,
     WormholeConnection,
+    WormholeType,
 )
 from wh_mapper.pathfinding import bfs_hop_distances, build_graph
 from wh_mapper.providers import esi
@@ -953,3 +965,192 @@ def _position_near(map_system: MapSystem | None) -> dict:
         "x": map_system.x + NEW_SYSTEM_OFFSET_X,
         "y": map_system.y,
     }
+
+
+def _eve_scout_owner():
+    """The first superuser found, as owner of the two eve-scout reference
+    Maps - Map.owner is a required FK, but ownership barely matters beyond
+    satisfying it: these maps are read_only (see Map.read_only's docstring),
+    nobody is expected to edit them by hand regardless of who "owns" one."""
+
+    return get_user_model().objects.filter(is_superuser=True).order_by("id").first()
+
+
+def _eve_scout_remaining_hours(row: dict, now) -> float:
+    """row["remaining_hours"] when eve-scout provides it (not documented as
+    always present); otherwise computed from the required expires_at."""
+
+    remaining_hours = row.get("remaining_hours")
+    if remaining_hours is not None:
+        return float(remaining_hours)
+
+    expires_at = parse_datetime(row["expires_at"])
+    return (expires_at - now).total_seconds() / 3600
+
+
+def _sync_eve_scout_hub(map_name: str, hub_system_id: int, rows: list[dict], owner) -> None:
+    """Sync one eve-scout hub's (Thera's or Turnur's) current live
+    signatures onto its own dedicated read_only reference Map - see
+    sync_eve_scout_thera_turnur."""
+
+    map_obj, _ = Map.objects.get_or_create(
+        name=map_name,
+        read_only=True,
+        defaults={"owner": owner, "visibility": Map.Visibility.PRIVATE},
+    )
+
+    hub_system, _ = MapSystem.objects.get_or_create(
+        map=map_obj,
+        solar_system_id=hub_system_id,
+        defaults={"x": 0.0, "y": 0.0, "added_by": None},
+    )
+
+    # Stable order (not eve-scout's own, which can reshuffle run to run) so
+    # this read-only map - nobody can drag it straight - doesn't jump around
+    # visually between polls; unscanned far ends (no in_system_name) sort by
+    # their own signature id instead.
+    rows = sorted(rows, key=lambda r: r.get("in_system_name") or r["out_signature"])
+
+    now = timezone.now()
+    seen_out_signatures = set()
+    changed = False
+
+    for index, row in enumerate(rows):
+        out_signature = row["out_signature"].upper()
+        seen_out_signatures.add(out_signature)
+
+        far_system = None
+        if row.get("in_system_id") is not None:
+            angle = 2 * math.pi * index / len(rows)
+            far_system, far_created = MapSystem.objects.get_or_create(
+                map=map_obj,
+                solar_system_id=row["in_system_id"],
+                defaults={
+                    "x": EVE_SCOUT_HUB_RADIUS * math.cos(angle),
+                    "y": EVE_SCOUT_HUB_RADIUS * math.sin(angle),
+                    "added_by": None,
+                },
+            )
+            if far_created:
+                changed = True
+
+        # Per eve-scout's own docs, wh_type only describes the hub-side
+        # signature when wh_exits_outward is true - otherwise the hub side
+        # is actually the K162 end, and the real entrance type belongs to
+        # whichever far-side signature nobody's reported to this feed.
+        wormhole_type = None
+        if row.get("wh_exits_outward") and row.get("wh_type"):
+            wormhole_type = WormholeType.objects.filter(code__iexact=row["wh_type"]).first()
+
+        life_status = life_status_for_remaining_hours(
+            _eve_scout_remaining_hours(row, now)
+        )
+
+        signature, sig_created = Signature.objects.update_or_create(
+            map_system=hub_system,
+            signature_id=out_signature,
+            defaults={
+                "sig_type": Signature.SignatureType.WORMHOLE,
+                "wormhole_type": wormhole_type,
+                "life_status": life_status,
+                "life_status_marked_at": now,
+            },
+        )
+        if sig_created:
+            changed = True
+
+        if far_system is not None:
+            ship_size = row.get("max_ship_size") or WormholeConnection.ShipSize.UNKNOWN
+            _, connection_created = get_or_create_connection(
+                map_obj.id,
+                hub_system,
+                far_system,
+                None,
+                connection_type=WormholeConnection.ConnectionType.WORMHOLE,
+                top_signature=signature,
+                ship_size_limit=ship_size,
+            )
+            if connection_created:
+                changed = True
+
+    # Prune anything eve-scout no longer reports as live for this hub - it
+    # expired, was completed elsewhere, or was deleted upstream. top_/
+    # bottom_signature on the resulting connection isn't reliably "top" (see
+    # get_or_create_connection's pk-order canonicalization), so both sides
+    # need checking; same for which end is the far system.
+    stale_signatures = list(
+        Signature.objects.filter(map_system=hub_system).exclude(
+            signature_id__in=seen_out_signatures
+        )
+    )
+    if stale_signatures:
+        stale_signature_ids = [s.id for s in stale_signatures]
+        removed_connections = list(
+            WormholeConnection.objects.filter(map=map_obj).filter(
+                Q(top_signature_id__in=stale_signature_ids)
+                | Q(bottom_signature_id__in=stale_signature_ids)
+            )
+        )
+        far_system_ids = {
+            c.bottom_system_id if c.top_system_id == hub_system.id else c.top_system_id
+            for c in removed_connections
+        }
+        WormholeConnection.objects.filter(
+            id__in=[c.id for c in removed_connections]
+        ).delete()
+        Signature.objects.filter(id__in=stale_signature_ids).delete()
+
+        for far_system_id in far_system_ids:
+            still_connected = WormholeConnection.objects.filter(
+                Q(top_system_id=far_system_id) | Q(bottom_system_id=far_system_id)
+            ).exists()
+            if not still_connected:
+                MapSystem.objects.filter(id=far_system_id).delete()
+
+        changed = True
+
+    if changed:
+        broadcast_map_event(map_obj.id, "map.resync", {})
+
+
+@shared_task
+@track_heartbeat("sync_eve_scout_thera_turnur")
+def sync_eve_scout_thera_turnur():
+    """Keep two dedicated, read-only reference Maps (see Map.read_only) in
+    sync with eve-scout.com's public feed of live Thera/Turnur wormhole
+    signatures - one Map per hub, each with just that hub's own connections.
+    Users import from either onto their own maps via
+    wh_mapper.api.maps' import-from-map endpoint (wh_mapper.api.helpers.
+    import_map_content).
+
+    eve-scout's API has no delta/incremental endpoint - every poll re-fetches
+    the full current list of live signatures, so this always does a full
+    upsert-then-prune sync rather than applying incremental changes.
+
+    Schedule this periodically (e.g. every 5 minutes, matching the feed's
+    own Cache-Control max-age) via CELERYBEAT_SCHEDULE in your AA install's
+    local settings, or run it on demand via
+    `manage.py wh_mapper_sync_eve_scout_thera_turnur`.
+    """
+
+    # Deliberately not caught here - track_heartbeat needs the exception to
+    # propagate to correctly record this run as a failure (same reasoning
+    # as refresh_system_sovereignty's self.retry(), which raises internally
+    # for the same purpose); swallowing it would make a failed fetch look
+    # like a silent no-op success on the status page.
+    response = httpx.get(EVE_SCOUT_API_URL, timeout=10)
+    response.raise_for_status()
+
+    owner = _eve_scout_owner()
+    if owner is None:
+        logger.warning(
+            "No superuser found to own the eve-scout reference maps - skipping sync"
+        )
+        return
+
+    rows = response.json()
+    thera_rows = [row for row in rows if row.get("out_system_id") == THERA_SYSTEM_ID]
+    turnur_rows = [row for row in rows if row.get("out_system_id") == TURNUR_SYSTEM_ID]
+
+    _sync_eve_scout_hub(EVE_SCOUT_THERA_MAP_NAME, THERA_SYSTEM_ID, thera_rows, owner)
+    _sync_eve_scout_hub(EVE_SCOUT_TURNUR_MAP_NAME, TURNUR_SYSTEM_ID, turnur_rows, owner)

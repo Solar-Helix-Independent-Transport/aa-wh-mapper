@@ -14,6 +14,7 @@ from wh_mapper.api.helpers import (
     map_contribution_to_schema,
     record_contribution,
     require_visible_map,
+    require_writable_map,
     user_display_name,
 )
 from wh_mapper.broadcast import broadcast_map_event
@@ -48,7 +49,7 @@ class WormholeConnectionApiEndpoints:
         def add_connection(
             request, map_id: int, payload: schema.WormholeConnectionCreate
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -130,7 +131,7 @@ class WormholeConnectionApiEndpoints:
             connection_id: int,
             payload: schema.WormholeConnectionUpdate,
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -168,7 +169,7 @@ class WormholeConnectionApiEndpoints:
             connection_id: int,
             payload: schema.ConnectionSignatureLink,
         ):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 
@@ -235,7 +236,7 @@ class WormholeConnectionApiEndpoints:
             tags=self.tags,
         )
         def remove_connection(request, map_id: int, connection_id: int):
-            map_obj, error = require_visible_map(request, map_id)
+            map_obj, error = require_writable_map(request, map_id)
             if error:
                 return error
 

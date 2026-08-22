@@ -56,6 +56,13 @@ class TestMapVisibility(TestCase):
         )
         MapShareGroup.objects.create(map=cls.group_shared_map, group=cls.group)
 
+        cls.read_only_map = Map.objects.create(
+            name="Read Only",
+            owner=cls.owner,
+            visibility=Map.Visibility.PRIVATE,
+            read_only=True,
+        )
+
     def test_owner_sees_all_own_maps(self):
         visible = set(Map.objects.visible_to(self.owner).values_list("id", flat=True))
         self.assertEqual(
@@ -66,6 +73,7 @@ class TestMapVisibility(TestCase):
                 self.corp_shared_map.id,
                 self.alliance_shared_map.id,
                 self.group_shared_map.id,
+                self.read_only_map.id,
             },
         )
 
@@ -73,29 +81,40 @@ class TestMapVisibility(TestCase):
         visible = set(
             Map.objects.visible_to(self.char_grantee).values_list("id", flat=True)
         )
-        self.assertEqual(visible, {self.char_shared_map.id})
+        self.assertEqual(visible, {self.char_shared_map.id, self.read_only_map.id})
 
     def test_corporation_grant_scopes_to_that_corporation(self):
         visible = set(
             Map.objects.visible_to(self.corp_grantee).values_list("id", flat=True)
         )
-        self.assertEqual(visible, {self.corp_shared_map.id})
+        self.assertEqual(visible, {self.corp_shared_map.id, self.read_only_map.id})
 
     def test_alliance_grant_scopes_to_that_alliance(self):
         visible = set(
             Map.objects.visible_to(self.alliance_grantee).values_list("id", flat=True)
         )
-        self.assertEqual(visible, {self.alliance_shared_map.id})
+        self.assertEqual(visible, {self.alliance_shared_map.id, self.read_only_map.id})
 
     def test_group_grant_scopes_to_that_group(self):
         visible = set(
             Map.objects.visible_to(self.group_grantee).values_list("id", flat=True)
         )
-        self.assertEqual(visible, {self.group_shared_map.id})
+        self.assertEqual(visible, {self.group_shared_map.id, self.read_only_map.id})
 
-    def test_outsider_sees_nothing(self):
+    def test_outsider_sees_only_read_only_maps(self):
         visible = set(Map.objects.visible_to(self.outsider).values_list("id", flat=True))
-        self.assertEqual(visible, set())
+        self.assertEqual(visible, {self.read_only_map.id})
+
+    def test_read_only_map_visible_to_every_user_with_no_share(self):
+        for user in (
+            self.char_grantee,
+            self.corp_grantee,
+            self.alliance_grantee,
+            self.group_grantee,
+            self.outsider,
+        ):
+            visible = set(Map.objects.visible_to(user).values_list("id", flat=True))
+            self.assertIn(self.read_only_map.id, visible)
 
     def test_private_map_never_visible_to_non_owner(self):
         for user in (
