@@ -216,7 +216,7 @@ export interface RegionGraphEdgeOut {
   target: number;
 }
 
-export type RegionGraphLandmarkKind = "thera" | "drifter" | "pochven";
+export type RegionGraphLandmarkKind = "thera" | "drifter" | "turnur";
 
 export interface RegionGraphLandmarkOut {
   id: number;

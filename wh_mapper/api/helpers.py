@@ -31,6 +31,7 @@ from wh_mapper.constants import (
     REGION_IMPORT_LAYOUT_SIZE,
     TASK_EXPECTED_INTERVAL_SECONDS,
     THERA_SYSTEM_ID,
+    TURNUR_SYSTEM_ID,
     UNKNOWN_STABLE_MAX_HOURS,
     WORMHOLE_REGION_LETTER_TO_CLASS,
     WORMHOLE_SPACE_ID_MAX,
@@ -1330,12 +1331,21 @@ def build_region_graph() -> dict:
     k-space/Pochven region on both ends (J-space systems have no
     stargates), so no extra filtering beyond dropping null FKs is needed.
 
-    Pochven is excluded from the main node/edge set (unlike
-    list_flat_regions, which still offers it for map import) and returned
-    instead as a landmark alongside Thera and the five Drifter regions -
-    none of these are ever linked to another flat region by a permanent
-    Stargate (they're only ever reached by wormhole), so they'd otherwise
-    render as centroid-positioned but permanently edge-less nodes. The
+    Pochven is excluded from the main node/edge set entirely (unlike
+    list_flat_regions, which still offers it for map import) - it has no
+    permanent Stargate to any other flat region, so it would otherwise
+    render as a centroid-positioned but permanently edge-less node, and
+    unlike Thera/Drifter/Turnur below it isn't surfaced as a landmark either.
+
+    Thera, the five Drifter regions, and Turnur (eve-scout's second live
+    wormhole hub - see wh_mapper.tasks.sync_eve_scout_thera_turnur) are
+    returned as landmarks instead of/alongside their normal node
+    representation: Thera/Drifter for the same never-linked-by-Stargate
+    reason as Pochven (they'd otherwise be edge-less nodes too, since
+    they're J-space and so never in flat_regions/nodes at all), Turnur so a
+    wormhole connection to it specifically gets its own highlight distinct
+    from "touched Metropolis" even though it's an ordinary Stargate-linked
+    k-space system and stays part of the main Metropolis node too. The
     frontend positions landmarks itself and derives any link from them from
     the currently open map's own connections - see UniverseRegionsDialog.
     """
@@ -1417,9 +1427,9 @@ def build_region_graph() -> dict:
         landmarks.append(
             {"id": drifter_system.id, "name": drifter_system.name, "kind": "drifter"}
         )
-    pochven = Region.objects.filter(id=POCHVEN_REGION_ID).first()
-    if pochven is not None:
-        landmarks.append({"id": pochven.id, "name": pochven.name, "kind": "pochven"})
+    turnur = SolarSystem.objects.filter(id=TURNUR_SYSTEM_ID).first()
+    if turnur is not None:
+        landmarks.append({"id": turnur.id, "name": turnur.name, "kind": "turnur"})
 
     return {"nodes": nodes, "edges": edges, "landmarks": landmarks}
 

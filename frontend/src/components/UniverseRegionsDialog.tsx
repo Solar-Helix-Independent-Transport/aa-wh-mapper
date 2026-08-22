@@ -78,30 +78,18 @@ function touchedRegionNames(
   return touched;
 }
 
-// Thera/each Drifter system is identified by its own solar_system_id
-// (RegionGraphLandmarkOut.id *is* that system's id for those two kinds);
-// Pochven has no single system id worth matching against, so it's
-// identified by region name instead, like any other flat region.
+// Thera, each Drifter system, and Turnur are all identified by their own
+// solar_system_id - RegionGraphLandmarkOut.id *is* that system's id for
+// every landmark kind.
 function resolveLandmark(
   solarSystemId: number,
-  regionName: string | null,
   landmarks: RegionGraphLandmarkOut[],
 ): RegionGraphLandmarkOut | null {
-  const bySystemId = landmarks.find(
-    (landmark) => landmark.kind !== "pochven" && landmark.id === solarSystemId,
-  );
-  if (bySystemId) {
-    return bySystemId;
-  }
-  const pochven = landmarks.find((landmark) => landmark.kind === "pochven");
-  if (pochven && regionName === pochven.name) {
-    return pochven;
-  }
-  return null;
+  return landmarks.find((landmark) => landmark.id === solarSystemId) ?? null;
 }
 
 // A connection end resolves to either a landmark (Thera/a Drifter
-// region/Pochven) or, failing that, an ordinary flat-region graph node -
+// region/Turnur) or, failing that, an ordinary flat-region graph node -
 // whichever this end's underlying solar system actually belongs to.
 // Returns the xyflow node id to draw an edge to/from, already in whichever
 // of the two id spaces (`landmark-<id>` vs plain region id) that node
@@ -112,7 +100,7 @@ function resolveGraphNodeId(
   landmarks: RegionGraphLandmarkOut[],
   nodeIdByName: Map<string, number>,
 ): { nodeId: string; landmark: RegionGraphLandmarkOut | null } | null {
-  const landmark = resolveLandmark(solarSystemId, regionName, landmarks);
+  const landmark = resolveLandmark(solarSystemId, landmarks);
   if (landmark) {
     return { nodeId: `landmark-${landmark.id}`, landmark };
   }
@@ -131,7 +119,7 @@ type WormholeLink = { sourceNodeId: string; targetNodeId: string };
  * map's own connections reveal, plus which landmarks they touch - unlike
  * the static Stargate-derived edges, these are only ever known from the
  * currently open map. Covers any connection spanning two different flat
- * regions, not just ones touching Thera/a Drifter region/Pochven - a plain
+ * regions, not just ones touching Thera/a Drifter region/Turnur - a plain
  * region-to-region wormhole gets a link exactly the same way. */
 function mapWormholeTouchesAndLinks(
   systems: MapSystemOut[],
@@ -205,7 +193,7 @@ function mapWormholeTouchesAndLinks(
  * map's WormholeConnections. Stargate legs are skipped here (those already
  * get a solid accent-bright highlight on the static backbone edge itself -
  * see usedEdgeKeys below); a wormhole or ansiblex leg absolutely can cross
- * a real region boundary (or touch Thera/a Drifter region/Pochven), so
+ * a real region boundary (or touch Thera/a Drifter region/Turnur), so
  * without this a route that's entirely wormhole hops would show nothing
  * highlighted at all. */
 function routeWormholeTouchesAndLinks(
@@ -467,13 +455,13 @@ function LandmarkGraphNode({ data }: NodeProps & { data: LandmarkNodeData }) {
 
 const nodeTypes = { region: RegionGraphNode, landmark: LandmarkGraphNode };
 
-// Thera first, then the five Drifter regions, then Pochven - a fixed
+// Thera first, then the five Drifter regions, then Turnur - a fixed
 // display order independent of whatever order the API happens to return
 // them in.
 const LANDMARK_KIND_ORDER: Record<RegionGraphLandmarkKind, number> = {
   thera: 0,
   drifter: 1,
-  pochven: 2,
+  turnur: 2,
 };
 
 // How far left of the main region cluster's bounding box the landmark
@@ -928,7 +916,7 @@ export function UniverseRegionsDialog(props: Props) {
                         </li>
                         <li>
                           <span className="universe-landmark-node-dot" />
-                          Thera / Drifter region / Pochven
+                          Thera / Drifter region / Turnur
                         </li>
                         <li>
                           <span className="universe-landmark-node-dot universe-landmark-node-dot-touched" />
@@ -966,7 +954,7 @@ export function UniverseRegionsDialog(props: Props) {
                           />
                           {props.mode === "route"
                             ? "Wormhole/ansiblex leg used by this route"
-                            : "Region-to-region wormhole link (incl. Thera/a Drifter region/Pochven)"}
+                            : "Region-to-region wormhole link (incl. Thera/a Drifter region/Turnur)"}
                         </li>
                       </ul>
                       {props.mode === "route" && !props.route && (

@@ -424,19 +424,23 @@ class RegionGraphEdgeOut(Schema):
 
 
 class RegionGraphLandmarkOut(Schema):
-    """A wormhole-only point of interest - Thera, one of the five Drifter
-    regions, or Pochven - never linked to another flat region by a
-    permanent Stargate, so never part of RegionGraphOut.nodes/edges. Has no
-    server-computed position (see build_region_graph); the frontend lays
-    these out itself, and derives any link from a landmark to a flat region
-    from the currently open map's own connections, not this payload.
+    """A point of interest called out separately from the ordinary region
+    graph - Thera, one of the five Drifter regions, or Turnur (eve-scout's
+    second live wormhole hub). Thera/Drifter are J-space and so never part
+    of RegionGraphOut.nodes/edges to begin with; Turnur is an ordinary
+    Stargate-linked k-space system (and stays part of its own region's
+    node), but is called out here too so a wormhole connection to it
+    specifically gets its own highlight. Has no server-computed position
+    (see build_region_graph); the frontend lays these out itself, and
+    derives any link from a landmark to a flat region from the currently
+    open map's own connections, not this payload.
 
-    id is a solar_system_id for "thera"/"drifter" (Thera's or a Drifter
-    system's own id), or an eve_sde.Region id for "pochven"."""
+    id is always a solar_system_id - Thera's, a Drifter system's, or
+    Turnur's own."""
 
     id: int
     name: str
-    kind: Literal["thera", "drifter", "pochven"]
+    kind: Literal["thera", "drifter", "turnur"]
 
 
 class RegionGraphOut(Schema):

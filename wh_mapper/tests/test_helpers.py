@@ -49,6 +49,7 @@ from wh_mapper.constants import (
     DRIFTER_SYSTEM_CLASS,
     POCHVEN_REGION_ID,
     THERA_SYSTEM_ID,
+    TURNUR_SYSTEM_ID,
     UNKNOWN_STABLE_MAX_HOURS,
 )
 from wh_mapper.models import (
@@ -794,7 +795,7 @@ class TestBuildRegionGraph(TestCase):
         self.assertEqual(len(drifter_landmarks), 1)
         self.assertEqual(drifter_landmarks[0]["kind"], "drifter")
 
-    def test_pochven_appears_as_a_landmark_and_not_a_node(self):
+    def test_pochven_is_excluded_from_nodes_and_not_shown_as_a_landmark(self):
         region = Region.objects.create(id=POCHVEN_REGION_ID, name="Pochven")
         constellation = Constellation.objects.create(
             id=930001, name="Pochven Const", region=region
@@ -806,16 +807,30 @@ class TestBuildRegionGraph(TestCase):
 
         graph = build_region_graph()
 
-        pochven_landmarks = [
-            landmark
-            for landmark in graph["landmarks"]
-            if landmark["id"] == POCHVEN_REGION_ID
-        ]
-        self.assertEqual(len(pochven_landmarks), 1)
-        self.assertEqual(pochven_landmarks[0]["kind"], "pochven")
-
         node_ids = [n["id"] for n in graph["nodes"]]
         self.assertNotIn(POCHVEN_REGION_ID, node_ids)
+        self.assertFalse(
+            any(landmark["kind"] == "pochven" for landmark in graph["landmarks"])
+        )
+
+    def test_turnur_appears_as_a_landmark_and_stays_part_of_its_region_node(self):
+        turnur = make_solar_system(
+            "Turnur", id=TURNUR_SYSTEM_ID, security_status=0.4, x_2d=0.0, y_2d=0.0
+        )
+
+        graph = build_region_graph()
+
+        turnur_landmarks = [
+            landmark
+            for landmark in graph["landmarks"]
+            if landmark["id"] == TURNUR_SYSTEM_ID
+        ]
+        self.assertEqual(len(turnur_landmarks), 1)
+        self.assertEqual(turnur_landmarks[0]["kind"], "turnur")
+        self.assertEqual(turnur_landmarks[0]["name"], "Turnur")
+
+        node_ids = [n["id"] for n in graph["nodes"]]
+        self.assertIn(turnur.constellation.region_id, node_ids)
 
 
 class TestMapLastUpdated(TestCase):

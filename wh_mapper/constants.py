@@ -158,7 +158,10 @@ EVE_SCOUT_HUB_RADIUS = 400
 # POCHVEN_REGION_ID (not imported directly - that's a private submodule
 # path, and every other wh_mapper region/system id like DRIFTER_SYSTEM_CLASS
 # and THERA_SYSTEM_ID above is already its own hardcoded constant rather
-# than reaching into eve_sde's internals). See
+# than reaching into eve_sde's internals). Used only to exclude Pochven from
+# the universe map's main region node/edge set (it has no permanent
+# Stargate to any other flat region) - unlike Thera/Drifter/Turnur, Pochven
+# isn't surfaced as a landmark there either. See
 # wh_mapper.api.helpers.build_region_graph.
 POCHVEN_REGION_ID = 10000070
 
