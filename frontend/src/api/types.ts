@@ -209,6 +209,10 @@ export interface RegionGraphNodeOut {
   name: string;
   x: number;
   y: number;
+  // The region's dominant security class ("High Sec"/"Low Sec"/"Null
+  // Sec"/"Unknown"), from the *average* security_status across its member
+  // systems - see wh_mapper.api.helpers.build_region_graph.
+  space_type: string;
 }
 
 export interface RegionGraphEdgeOut {

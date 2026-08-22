@@ -42,6 +42,7 @@ from wh_mapper.api.helpers import (
     remaining_life_hours,
     signature_reference_time,
     single_system_statics,
+    space_type_for_security_status,
     space_type_label,
     stargate_connects,
 )
@@ -477,6 +478,30 @@ class TestSpaceTypeLabel(TestCase):
         self.assertEqual(space_type_label(system), "High Sec")
 
 
+class TestSpaceTypeForSecurityStatus(TestCase):
+    """TestSpaceTypeForSecurityStatus - the plain-float classification
+    space_type_label delegates to, and build_region_graph reuses for a
+    region's *average* security status."""
+
+    def test_high_sec(self):
+        self.assertEqual(space_type_for_security_status(0.9), "High Sec")
+
+    def test_high_sec_boundary(self):
+        self.assertEqual(space_type_for_security_status(0.45), "High Sec")
+
+    def test_low_sec(self):
+        self.assertEqual(space_type_for_security_status(0.3), "Low Sec")
+
+    def test_null_sec(self):
+        self.assertEqual(space_type_for_security_status(-0.2), "Null Sec")
+
+    def test_null_sec_boundary(self):
+        self.assertEqual(space_type_for_security_status(0.0), "Null Sec")
+
+    def test_unknown_when_none(self):
+        self.assertEqual(space_type_for_security_status(None), "Unknown")
+
+
 class TestConnectionTimeStatus(TestCase):
     """TestConnectionTimeStatus"""
 
@@ -706,6 +731,47 @@ class TestBuildRegionGraph(TestCase):
         # raw y_2d flips to the *smaller* canvas y - same convention
         # import_region uses.
         self.assertGreater(low_node["y"], high_node["y"])
+
+    def test_node_space_type_reflects_the_region_s_average_security_status(self):
+        region = Region.objects.create(id=940001, name="Mixed Security Region")
+        constellation = Constellation.objects.create(
+            id=940002, name="Mixed Security Const", region=region
+        )
+        # Average is (0.9 + 0.0) / 2 = 0.45 - exactly HIGH_SEC_SECURITY_THRESHOLD,
+        # so this region should classify as High Sec even though one of its
+        # two systems is null-sec on its own.
+        SolarSystem.objects.create(
+            id=940003, name="MixedHigh", constellation=constellation,
+            security_status=0.9, x_2d=0.0, y_2d=0.0,
+        )
+        SolarSystem.objects.create(
+            id=940004, name="MixedNull", constellation=constellation,
+            security_status=0.0, x_2d=10.0, y_2d=10.0,
+        )
+
+        graph = build_region_graph()
+
+        node = next(n for n in graph["nodes"] if n["id"] == region.id)
+        self.assertEqual(node["space_type"], "High Sec")
+
+    def test_node_space_type_is_null_sec_for_a_predominantly_null_sec_region(self):
+        region = Region.objects.create(id=940005, name="Null Sec Region")
+        constellation = Constellation.objects.create(
+            id=940006, name="Null Sec Const", region=region
+        )
+        SolarSystem.objects.create(
+            id=940007, name="GraphNullSecA", constellation=constellation,
+            security_status=-0.3, x_2d=0.0, y_2d=0.0,
+        )
+        SolarSystem.objects.create(
+            id=940008, name="GraphNullSecB", constellation=constellation,
+            security_status=-0.1, x_2d=10.0, y_2d=10.0,
+        )
+
+        graph = build_region_graph()
+
+        node = next(n for n in graph["nodes"] if n["id"] == region.id)
+        self.assertEqual(node["space_type"], "Null Sec")
 
     def test_cross_region_stargates_dedupe_to_one_edge(self):
         region_a = Region.objects.create(id=920001, name="Graph Edge Region A")

@@ -750,12 +750,19 @@ without being cut off. */
 }
 
 .universe-region-node-dot {
-  width: 12px;
-  height: 12px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--bg-inset);
-  border: 2.5px solid var(--text-dim);
+  border: 3.75px solid var(--text-dim);
   box-sizing: border-box;
+  /* Shrinks the security-color fill (see UniverseRegionsDialog's
+    RegionGraphNode) away from the border, leaving a visible gap ring
+    between the two rather than the color running edge-to-edge under the
+    border - background-clip stops the fill at the padding edge instead of
+    the full border-box. */
+  padding: 2.25px;
+  background-clip: content-box;
 }
 
 .universe-region-node-dot-touched {

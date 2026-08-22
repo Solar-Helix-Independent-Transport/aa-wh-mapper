@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMapState, getUniverseRegionsGraph } from "../api/maps";
+import { spaceTypeColor } from "../lib/spaceTypeColor";
 import type {
   MapOut,
   MapSystemOut,
@@ -19,8 +20,8 @@ vi.mock("../api/maps", () => ({
 function graph(overrides: Partial<RegionGraphOut> = {}): RegionGraphOut {
   return {
     nodes: [
-      { id: 10, name: "Region A", x: 0, y: 0 },
-      { id: 20, name: "Region B", x: 100, y: 0 },
+      { id: 10, name: "Region A", x: 0, y: 0, space_type: "High Sec" },
+      { id: 20, name: "Region B", x: 100, y: 0, space_type: "Null Sec" },
     ],
     edges: [{ source: 10, target: 20 }],
     landmarks: [{ id: 31000005, name: "Thera", kind: "thera" }],
@@ -144,6 +145,27 @@ describe("UniverseRegionsDialog", () => {
     expect(screen.getByText("Region A")).toBeInTheDocument();
     expect(screen.getByText("Region B")).toBeInTheDocument();
     expect(screen.getByText("Thera")).toBeInTheDocument();
+  });
+
+  it("fills each region's dot by its dominant security class", async () => {
+    vi.mocked(getUniverseRegionsGraph).mockResolvedValue(graph());
+    const { container } = render(
+      <UniverseRegionsDialog
+        mode="map"
+        systems={[]}
+        connections={[]}
+        onClose={vi.fn()}
+      />,
+    );
+    await flush();
+
+    const regionDots = container.querySelectorAll(".universe-region-node-dot");
+    expect(regionDots[0]).toHaveStyle({
+      backgroundColor: spaceTypeColor("High Sec"),
+    });
+    expect(regionDots[1]).toHaveStyle({
+      backgroundColor: spaceTypeColor("Null Sec"),
+    });
   });
 
   it("ring-highlights a region touched by the map's own connections", async () => {

@@ -407,12 +407,18 @@ class RegionOut(Schema):
 class RegionGraphNodeOut(Schema):
     """One "flat" Region as a node in the universe-regions graph - see
     wh_mapper.api.helpers.build_region_graph. x/y are a centroid of the
-    region's member systems, pre-scaled into REGION_IMPORT_LAYOUT_SIZE."""
+    region's member systems, pre-scaled into REGION_IMPORT_LAYOUT_SIZE.
+    space_type is the region's dominant security class ("High Sec"/"Low
+    Sec"/"Null Sec"/"Unknown"), from the *average* security_status across
+    its member systems - not a per-system value, so it's never "Wormhole"/
+    "Pochven"/etc. here (this is only ever a flat k-space region to begin
+    with - see list_flat_regions)."""
 
     id: int
     name: str
     x: float
     y: float
+    space_type: str
 
 
 class RegionGraphEdgeOut(Schema):

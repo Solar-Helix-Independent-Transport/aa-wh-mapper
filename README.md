@@ -1,4 +1,10 @@
-# YAWN
+<p align="center">
+  <img src="imgs/YAWN.svg" alt="YAWN logo" width="64" height="64">
+</p>
+
+<h1 align="center">
+YAWN
+</h1>
 
 **Y**et **A**nother **W**ormhole **N**avigator - a live, collaborative wormhole-chain mapping plugin for [Alliance Auth](https://gitlab.com/allianceauth/allianceauth) (AA) - a Pathfinder/Tripwire-style shared map that a corp or alliance builds up together in real time, with optional live character-location tracking.
 
@@ -8,6 +14,12 @@
 ![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)
 
 ![The map view, with a system's signatures/connections open in the side panel](imgs/map.png)
+
+## Why does this exist! XYZ already exists! REEEE *Angry EvE player noises*!
+
+As a grumpy null sec player first, wormhole player *rarely*, i have never found a tool that did what we wanted without having to hack it/modify it to expose the settings to share stuff how we wanted or have a permission system that worked for us. The goal here is not to recreate Wanderer, Pathfinder or any other of your favorite tools, they are all **very good tools** if they work for you please go use them and support the amazing developers that created them!
+
+This is unapologetically written from the POV of a WH illiterate Null sec F1/2 Monkey trying to help his group do stuff. Having said that if there is something that you would like to see in the tool and it doesn't degrade our use case i am very happy to work on it.
 
 ## Features
 
@@ -29,6 +41,10 @@
 
 ![Bulk-importing a whole region's systems and stargate connections](imgs/import.png)
 _Bulk region import_
+
+# Installation
+
+**This plugin is quite different to other Alliance auth plugins as it uses websockets! Please be sure to read the instructions properly otherwise YMMV!**
 
 ## Requirements
 

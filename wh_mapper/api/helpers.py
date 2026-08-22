@@ -243,6 +243,22 @@ def map_to_schema(map_obj: Map, request) -> dict:
     }
 
 
+def space_type_for_security_status(security_status: float | None) -> str:
+    """High Sec/Low Sec/Null Sec/Unknown from a security_status value alone -
+    the tail end of space_type_label's own classification, factored out so
+    build_region_graph can classify a *region's average* security status the
+    same way without duplicating HIGH_SEC_SECURITY_THRESHOLD's exact
+    boundary in two places."""
+
+    if security_status is None:
+        return "Unknown"
+    if security_status >= HIGH_SEC_SECURITY_THRESHOLD:
+        return "High Sec"
+    if security_status > 0.0:
+        return "Low Sec"
+    return "Null Sec"
+
+
 def space_type_label(solar_system) -> str:
     """A human-readable space type for a solar system (Wormhole/Pochven/
     Abyssal Deadspace/High Sec/Low Sec/Null Sec/Unknown).
@@ -264,14 +280,7 @@ def space_type_label(solar_system) -> str:
     if solar_system.constellation_id and solar_system.is_triglavian_space:
         return "Pochven"
 
-    security_status = solar_system.security_status
-    if security_status is None:
-        return "Unknown"
-    if security_status >= HIGH_SEC_SECURITY_THRESHOLD:
-        return "High Sec"
-    if security_status > 0.0:
-        return "Low Sec"
-    return "Null Sec"
+    return space_type_for_security_status(solar_system.security_status)
 
 
 def wormhole_class_id(solar_system) -> int | None:
@@ -1356,21 +1365,31 @@ def build_region_graph() -> dict:
     flat_region_ids = [region.id for region in flat_regions]
 
     # One Avg() aggregate query rather than pulling ~5k raw SolarSystem
-    # rows into Python - only the ~65-70 per-region centroids are needed,
-    # not the underlying system coordinates themselves.
+    # rows into Python - only the ~65-70 per-region centroids (and average
+    # security status - see avg_security below) are needed, not the
+    # underlying system rows themselves. avg_security rides along on the
+    # same query/queryset as the centroid coordinates (a region's positioned
+    # systems and its security-bearing ones are practically the same set),
+    # rather than a second aggregate pass over SolarSystem.
     centroids = {
-        row["constellation__region_id"]: (row["avg_x"], row["avg_y"])
+        row["constellation__region_id"]: (
+            row["avg_x"],
+            row["avg_y"],
+            row["avg_security"],
+        )
         for row in SolarSystem.objects.filter(
             constellation__region_id__in=flat_region_ids,
             x_2d__isnull=False,
             y_2d__isnull=False,
         )
         .values("constellation__region_id")
-        .annotate(avg_x=Avg("x_2d"), avg_y=Avg("y_2d"))
+        .annotate(
+            avg_x=Avg("x_2d"), avg_y=Avg("y_2d"), avg_security=Avg("security_status")
+        )
     }
 
-    xs = [x for x, _y in centroids.values()]
-    ys = [y for _x, y in centroids.values()]
+    xs = [x for x, _y, _security in centroids.values()]
+    ys = [y for _x, y, _security in centroids.values()]
     min_x, max_x = (min(xs), max(xs)) if xs else (0, 0)
     min_y, max_y = (min(ys), max(ys)) if ys else (0, 0)
     span_x = (max_x - min_x) or 1
@@ -1395,8 +1414,23 @@ def build_region_graph() -> dict:
         centroid = centroids.get(region.id)
         if centroid is None:
             continue
-        x, y = layout_position(*centroid)
-        nodes.append({"id": region.id, "name": region.name, "x": x, "y": y})
+        avg_x, avg_y, avg_security = centroid
+        x, y = layout_position(avg_x, avg_y)
+        nodes.append(
+            {
+                "id": region.id,
+                "name": region.name,
+                "x": x,
+                "y": y,
+                # The region's dominant security class (High/Low/Null Sec),
+                # from its systems' *average* security_status - lets the
+                # frontend fill each node's own dot by it (see
+                # UniverseRegionsDialog's RegionGraphNode), same High Sec/Low
+                # Sec/Null Sec palette space_type_label already uses
+                # per-system elsewhere in the app.
+                "space_type": space_type_for_security_status(avg_security),
+            }
+        )
         positioned_region_ids.add(region.id)
 
     region_pairs = (

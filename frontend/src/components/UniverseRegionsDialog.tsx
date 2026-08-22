@@ -22,6 +22,7 @@ import type {
 } from "../api/types";
 import { Dialog } from "./Dialog";
 import { LoadingState } from "./LoadingState";
+import { spaceTypeColor } from "../lib/spaceTypeColor";
 import {
   collapseHopNumbers,
   compressPositions,
@@ -54,6 +55,12 @@ type Props =
 
 type RegionNodeData = {
   name: string;
+  // The region's dominant security class ("High Sec"/"Low Sec"/"Null
+  // Sec"/"Unknown"), from its systems' *average* security_status - see
+  // RegionGraphNodeOut. Fills the dot itself, same High Sec/Low Sec/Null
+  // Sec palette spaceTypeColor already uses per-system elsewhere in the
+  // app (SystemNode's titlebar, RouteItinerary's security badge).
+  spaceType: string;
   touched: boolean;
   selected: boolean;
   // 1-indexed route hop number(s) landing in this region, collapsed into
@@ -80,6 +87,7 @@ function RegionGraphNode({ data }: NodeProps & { data: RegionNodeData }) {
         className={`universe-region-node-dot${
           data.touched ? " universe-region-node-dot-touched" : ""
         }${data.selected ? " universe-node-dot-selected" : ""}`}
+        style={{ backgroundColor: spaceTypeColor(data.spaceType) }}
       />
       <span
         className={`universe-region-node-label${
@@ -344,6 +352,7 @@ export function UniverseRegionsDialog(props: Props) {
         position: compressedPositions.get(n.id) ?? { x: n.x, y: n.y },
         data: {
           name: n.name,
+          spaceType: n.space_type,
           touched: touched.has(n.name),
           // Overridden in displayNodes once the edge-click case (which
           // needs highlightedNodeIds, computed after this memo) is known.
@@ -384,9 +393,13 @@ export function UniverseRegionsDialog(props: Props) {
           source: String(e.source),
           target: String(e.target),
           type: "straight",
+          // Cross-region stargate backbone links aren't clickable - only the
+          // wormhole/ansiblex links below are (see onEdgeClick's own guard).
+          selectable: false,
           style: {
             stroke: used ? "var(--accent-bright)" : "var(--border)",
             strokeWidth: used ? 3 : 1,
+            pointerEvents: "none",
           },
         };
       }) ?? [];
@@ -496,6 +509,9 @@ export function UniverseRegionsDialog(props: Props) {
               );
             }}
             onEdgeClick={(_event, edge) => {
+              // Only wormhole/ansiblex links (id "wh-...") are clickable -
+              // the region-to-region stargate backbone is display-only.
+              if (!edge.id.startsWith("wh-")) return;
               setSelectedNodeId(null);
               setSelectedEdgeId((current) =>
                 current === edge.id ? null : edge.id,
