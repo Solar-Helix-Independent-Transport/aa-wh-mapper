@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from eve_sde.models import Stargate
 
 # AA WH Mapper App
+from wh_mapper.constants import ZARZAKH_SYSTEM_ID
 from wh_mapper.models import Map, WormholeConnection
 
 STARGATE_WEIGHT = 1.0
@@ -98,6 +99,13 @@ def build_graph(user) -> Graph:
     graph: Graph = defaultdict(list)
 
     for source_id, dest_id in Stargate.objects.values_list("solar_system_id", "destination_id"):
+        # Zarzakh's outbound gates are stored like any other gate pairing,
+        # but in game they don't work that direction - you can gate in, not
+        # back out - so a stargate edge leaving Zarzakh would offer the
+        # router a "route" that isn't actually flyable. See
+        # ZARZAKH_SYSTEM_ID's docstring.
+        if source_id == ZARZAKH_SYSTEM_ID:
+            continue
         leg = RouteLeg("stargate", None, None, None, None)
         graph[source_id].append((dest_id, STARGATE_WEIGHT, leg))
 

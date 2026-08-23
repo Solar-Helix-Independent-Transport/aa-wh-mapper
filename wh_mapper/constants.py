@@ -137,6 +137,14 @@ THERA_SYSTEM_ID = 31000005
 # wh_mapper.tasks.sync_eve_scout_thera_turnur).
 TURNUR_SYSTEM_ID = 30002086
 
+# Zarzakh's own solar_system_id. The eve_sde static universe stores its
+# stargates bidirectionally like any other gate, but in game those gates
+# only work inbound - once you've gated into Zarzakh you cannot gate back
+# out (only wormholes that spawn there let you leave). See
+# wh_mapper.pathfinding.build_graph, which drops Zarzakh's outbound
+# stargate edges so the router never treats it as a through-route.
+ZARZAKH_SYSTEM_ID = 30100000
+
 # Names of the two read-only reference Maps wh_mapper.tasks.
 # sync_eve_scout_thera_turnur keeps in sync with eve-scout.com's public
 # signature feed - get_or_create'd by name, so the task always finds the
