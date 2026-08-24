@@ -17,7 +17,12 @@ import { StatusPage } from "./components/StatusPage";
 
 function MapListRoute() {
   const navigate = useNavigate();
-  return <MapList onOpen={(map) => navigate(`/maps/${map.id}`)} />;
+  return (
+    <MapList
+      onOpen={(map) => navigate(`/maps/${map.id}`)}
+      onOpenRoute={(route) => navigate(`/route/shared/${route.id}`)}
+    />
+  );
 }
 
 function MapViewRoute() {

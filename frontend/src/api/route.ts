@@ -3,11 +3,14 @@ import type {
   ConnectionFlagAcceptResult,
   ConnectionFlagOut,
   RouteOut,
+  RouteSummaryOut,
   SharedRouteOut,
 } from "./types";
 
 export const getRoute = (startId: number, endId: number) =>
   api.get<RouteOut>(`/route/?start_id=${startId}&end_id=${endId}`);
+
+export const listMyRoutes = () => api.get<RouteSummaryOut[]>("/route/shared/");
 
 export const shareRoute = (startId: number, endId: number) =>
   api.post<SharedRouteOut>("/route/shared/", {

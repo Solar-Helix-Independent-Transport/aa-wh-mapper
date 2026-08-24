@@ -93,6 +93,29 @@ class TestSharedRouteApi(TestCase):
             ],
         )
 
+    def test_list_my_routes_returns_only_the_caller_s_own_routes(self):
+        mine = Route.objects.create(
+            owner=self.alice,
+            start_system=self.jita,
+            end_system=self.amarr,
+            visibility=Route.Visibility.SHARED,
+        )
+        Route.objects.create(
+            owner=self.bob,
+            start_system=self.amarr,
+            end_system=self.jita,
+            visibility=Route.Visibility.SHARED,
+        )
+
+        response = self.client.get("/wh-mapper/api/route/shared/")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(len(body), 1)
+        self.assertEqual(body[0]["id"], mine.id)
+        self.assertEqual(body[0]["start_system_name"], "Jita")
+        self.assertEqual(body[0]["end_system_name"], "Amarr")
+
     def test_private_route_hidden_from_other_users(self):
         route = Route.objects.create(
             owner=self.alice,

@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMap, deleteMap, listMaps, updateMap } from "../api/maps";
-import type { MapOut } from "../api/types";
+import { deleteSharedRoute, listMyRoutes } from "../api/route";
+import type { MapOut, RouteSummaryOut } from "../api/types";
 import { MapList } from "./MapList";
 
 vi.mock("../api/maps", () => ({
@@ -10,6 +11,10 @@ vi.mock("../api/maps", () => ({
   deleteMap: vi.fn(),
   listMaps: vi.fn(),
   updateMap: vi.fn(),
+}));
+vi.mock("../api/route", () => ({
+  deleteSharedRoute: vi.fn(),
+  listMyRoutes: vi.fn(),
 }));
 vi.mock("./UniverseRegionsDialog", () => ({
   UniverseRegionsDialog: ({ onClose }: { onClose: () => void }) => (
@@ -39,14 +44,32 @@ function mapOut(overrides: Partial<MapOut> = {}): MapOut {
   };
 }
 
+function routeSummaryOut(
+  overrides: Partial<RouteSummaryOut> = {},
+): RouteSummaryOut {
+  return {
+    id: 1,
+    owner_name: "Alice",
+    start_system_name: "Jita",
+    end_system_name: "Amarr",
+    visibility: "shared",
+    found: true,
+    last_viewed_at: "2026-01-01T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
 async function flush() {
   await act(async () => {
     await Promise.resolve();
   });
 }
 
-function renderMapList(onOpen = vi.fn()) {
-  return render(<MapList onOpen={onOpen} />, { wrapper: MemoryRouter });
+function renderMapList(onOpen = vi.fn(), onOpenRoute = vi.fn()) {
+  return render(<MapList onOpen={onOpen} onOpenRoute={onOpenRoute} />, {
+    wrapper: MemoryRouter,
+  });
 }
 
 describe("MapList", () => {
@@ -55,6 +78,12 @@ describe("MapList", () => {
     vi.mocked(deleteMap).mockReset();
     vi.mocked(listMaps).mockReset();
     vi.mocked(updateMap).mockReset();
+    vi.mocked(deleteSharedRoute).mockReset();
+    vi.mocked(listMyRoutes).mockReset();
+    // Default to no shared routes so existing map-focused tests (which
+    // don't stub this themselves) don't hang on an unresolved promise or
+    // pick up a stray "Delete" button from the routes panel.
+    vi.mocked(listMyRoutes).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -228,5 +257,64 @@ describe("MapList", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Universe" }));
     expect(screen.getByTestId("universe-dialog")).toBeInTheDocument();
+  });
+
+  it("lists the current user's shared routes, not anyone else's", async () => {
+    vi.mocked(listMaps).mockResolvedValue([]);
+    vi.mocked(listMyRoutes).mockResolvedValue([
+      routeSummaryOut({
+        id: 7,
+        start_system_name: "Jita",
+        end_system_name: "Amarr",
+      }),
+    ]);
+    renderMapList();
+    await flush();
+
+    expect(screen.getByText("My shared routes")).toBeInTheDocument();
+    expect(screen.getByText("Jita → Amarr")).toBeInTheDocument();
+  });
+
+  it("opens a shared route on click", async () => {
+    vi.mocked(listMaps).mockResolvedValue([]);
+    vi.mocked(listMyRoutes).mockResolvedValue([routeSummaryOut({ id: 7 })]);
+    const onOpenRoute = vi.fn();
+    renderMapList(vi.fn(), onOpenRoute);
+    await flush();
+
+    fireEvent.click(screen.getByText("Jita → Amarr"));
+    expect(onOpenRoute).toHaveBeenCalledWith(routeSummaryOut({ id: 7 }));
+  });
+
+  it("deletes a shared route after confirmation and refreshes", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(listMaps).mockResolvedValue([]);
+    vi.mocked(listMyRoutes)
+      .mockResolvedValueOnce([routeSummaryOut({ id: 7 })])
+      .mockResolvedValueOnce([]);
+    vi.mocked(deleteSharedRoute).mockResolvedValue(undefined);
+    renderMapList();
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await flush();
+
+    expect(deleteSharedRoute).toHaveBeenCalledWith(7);
+    expect(
+      screen.getByText("You haven't shared any routes yet."),
+    ).toBeInTheDocument();
+  });
+
+  it("does not delete a route when the confirmation is declined", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    vi.mocked(listMaps).mockResolvedValue([]);
+    vi.mocked(listMyRoutes).mockResolvedValue([routeSummaryOut({ id: 7 })]);
+    renderMapList();
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await flush();
+
+    expect(deleteSharedRoute).not.toHaveBeenCalled();
   });
 });

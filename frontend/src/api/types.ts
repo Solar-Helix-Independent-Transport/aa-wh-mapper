@@ -415,7 +415,8 @@ export interface MapSummaryOut {
   active_users: number;
 }
 
-// One current (not yet pruned) shared Route, for the admin status page.
+// One current (not yet pruned) shared Route - used both by the admin
+// status page and the maps screen's "My shared routes" panel.
 export interface RouteSummaryOut {
   id: number;
   owner_name: string;

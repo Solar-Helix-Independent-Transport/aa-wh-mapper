@@ -1988,6 +1988,22 @@ def admin_map_list() -> list[dict]:
     ]
 
 
+def _route_to_summary(route: Route) -> dict:
+    """RouteSummaryOut shape, shared by admin_route_list (every route) and
+    user_route_list (one owner's routes)."""
+
+    return {
+        "id": route.id,
+        "owner_name": route.owner.username,
+        "start_system_name": route.start_system.name,
+        "end_system_name": route.end_system.name,
+        "visibility": route.visibility,
+        "found": route.found,
+        "last_viewed_at": route.last_viewed_at,
+        "created_at": route.created_at,
+    }
+
+
 def admin_route_list() -> list[dict]:
     """Every current (not yet pruned by wh_mapper.tasks.prune_stale_routes)
     shared Route, for the admin status page."""
@@ -1996,19 +2012,23 @@ def admin_route_list() -> list[dict]:
         "owner", "start_system", "end_system"
     ).order_by("-last_viewed_at")
 
-    return [
-        {
-            "id": r.id,
-            "owner_name": r.owner.username,
-            "start_system_name": r.start_system.name,
-            "end_system_name": r.end_system.name,
-            "visibility": r.visibility,
-            "found": r.found,
-            "last_viewed_at": r.last_viewed_at,
-            "created_at": r.created_at,
-        }
-        for r in routes
-    ]
+    return [_route_to_summary(r) for r in routes]
+
+
+def user_route_list(user) -> list[dict]:
+    """Every current (not yet pruned) Route owned by `user` - the "My shared
+    routes" panel on the maps screen. owner_name is always `user`'s own
+    name here, but RouteSummaryOut's shape is otherwise exactly what that
+    panel needs, so it's reused rather than adding a near-identical
+    single-user schema."""
+
+    routes = (
+        Route.objects.filter(owner=user)
+        .select_related("owner", "start_system", "end_system")
+        .order_by("-created_at")
+    )
+
+    return [_route_to_summary(r) for r in routes]
 
 
 def app_status_to_schema() -> dict:

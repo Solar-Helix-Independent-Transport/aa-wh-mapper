@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createMap, deleteMap, listMaps, updateMap } from "../api/maps";
-import type { MapOut } from "../api/types";
+import { deleteSharedRoute, listMyRoutes } from "../api/route";
+import type { MapOut, RouteSummaryOut } from "../api/types";
 import { relativeTimeLabel } from "../lib/relativeTime";
 import { AppHeader } from "./AppHeader";
 import { DataTable } from "./DataTable";
@@ -10,6 +11,7 @@ import { UniverseRegionsDialog } from "./UniverseRegionsDialog";
 
 interface Props {
   onOpen: (map: MapOut) => void;
+  onOpenRoute: (route: RouteSummaryOut) => void;
 }
 
 function ActiveUsersBadge({ count }: { count: number }) {
@@ -70,14 +72,17 @@ function RenameCell({
 
 const mineColumnHelper = dataTableColumnHelper<MapOut>();
 const sharedColumnHelper = dataTableColumnHelper<MapOut>();
+const routeColumnHelper = dataTableColumnHelper<RouteSummaryOut>();
 
-export function MapList({ onOpen }: Props) {
+export function MapList({ onOpen, onOpenRoute }: Props) {
   const [maps, setMaps] = useState<MapOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingMapId, setEditingMapId] = useState<number | null>(null);
   const [showUniverse, setShowUniverse] = useState(false);
+  const [myRoutes, setMyRoutes] = useState<RouteSummaryOut[] | null>(null);
+  const [routesError, setRoutesError] = useState<string | null>(null);
 
   const refresh = () => {
     listMaps()
@@ -85,7 +90,29 @@ export function MapList({ onOpen }: Props) {
       .catch((err) => setError(String(err)));
   };
 
+  const refreshRoutes = () => {
+    listMyRoutes()
+      .then(setMyRoutes)
+      .catch((err) => setRoutesError(String(err)));
+  };
+
   useEffect(refresh, []);
+  useEffect(refreshRoutes, []);
+
+  const handleDeleteRoute = useCallback(async (route: RouteSummaryOut) => {
+    const confirmed = window.confirm(
+      `Delete the shared route ${route.start_system_name} → ${route.end_system_name}?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await deleteSharedRoute(route.id);
+      refreshRoutes();
+    } catch (err) {
+      setRoutesError(String(err));
+    }
+  }, []);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -239,6 +266,61 @@ export function MapList({ onOpen }: Props) {
     [],
   );
 
+  const routeColumns = useMemo(
+    () =>
+      routeColumnHelper.columns([
+        routeColumnHelper.display({
+          id: "route",
+          header: "Route",
+          cell: (info) => {
+            const route = info.row.original;
+            return (
+              <span className="map-card-name">
+                {route.start_system_name} → {route.end_system_name}
+              </span>
+            );
+          },
+        }),
+        routeColumnHelper.accessor("found", {
+          header: "Status",
+          cell: (info) => (
+            <span
+              className={`badge badge-${info.getValue() ? "shared" : "private"}`}
+            >
+              {info.getValue() ? "Reachable" : "No route found"}
+            </span>
+          ),
+        }),
+        routeColumnHelper.accessor("last_viewed_at", {
+          header: "Last viewed",
+          cell: (info) => relativeTimeLabel(info.getValue()),
+        }),
+        routeColumnHelper.display({
+          id: "actions",
+          header: "",
+          enableSorting: false,
+          cell: (info) => {
+            const route = info.row.original;
+            return (
+              <div
+                className="map-card-actions"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="link-button danger"
+                  onClick={() => handleDeleteRoute(route)}
+                >
+                  Delete
+                </button>
+              </div>
+            );
+          },
+        }),
+      ]),
+    [handleDeleteRoute],
+  );
+
   if (error) {
     return (
       <>
@@ -304,6 +386,24 @@ export function MapList({ onOpen }: Props) {
             searchPlaceholder="Search shared maps…"
             emptyMessage="Nothing shared with you yet."
           />
+        </section>
+
+        <section>
+          {routesError ? (
+            <p className="error">Failed to load your routes: {routesError}</p>
+          ) : myRoutes === null ? (
+            <LoadingState label="Loading your routes…" />
+          ) : (
+            <DataTable
+              title="My shared routes"
+              data={myRoutes}
+              columns={routeColumns}
+              getRowId={(route) => String(route.id)}
+              onRowClick={onOpenRoute}
+              searchPlaceholder="Search your routes…"
+              emptyMessage="You haven't shared any routes yet."
+            />
+          )}
         </section>
       </div>
 

@@ -708,8 +708,10 @@ class MapSummaryOut(Schema):
 
 
 class RouteSummaryOut(Schema):
-    """One current (not yet pruned) shared Route, for the admin status
-    page's full listing - see wh_mapper.api.helpers.admin_route_list."""
+    """One current (not yet pruned) shared Route - used both by the admin
+    status page's full listing (wh_mapper.api.helpers.admin_route_list) and
+    the maps screen's "My shared routes" panel, scoped to one owner
+    (wh_mapper.api.helpers.user_route_list)."""
 
     id: int
     owner_name: str

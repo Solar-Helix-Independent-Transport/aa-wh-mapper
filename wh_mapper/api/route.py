@@ -12,6 +12,7 @@ from wh_mapper.api.helpers import (
     require_basic_access,
     route_result_to_schema,
     shared_route_to_schema,
+    user_route_list,
 )
 from wh_mapper.models import Route
 from wh_mapper.pathfinding import compute_route
@@ -39,6 +40,23 @@ class RouteApiEndpoints:
 
             computation = compute_route(request.user, start_id, end_id)
             return route_result_to_schema(computation)
+
+        @api.get(
+            "/route/shared/",
+            response={200: list[schema.RouteSummaryOut], 403: str},
+            tags=self.tags,
+        )
+        def list_my_routes(request):
+            """The "My shared routes" panel on the maps screen - every route
+            the current user owns, not just ones they can currently reach
+            via a map (a route's owner always sees it - see
+            get_visible_route)."""
+
+            error = require_basic_access(request)
+            if error:
+                return error
+
+            return user_route_list(request.user)
 
         @api.post(
             "/route/shared/",
