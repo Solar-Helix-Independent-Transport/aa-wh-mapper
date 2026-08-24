@@ -280,11 +280,15 @@ class Signature(models.Model):
     class LifeStatus(models.TextChoices):
         """Choices for Signature.life_status - a countdown-to-collapse
         ladder rather than a plain stable/EOL flag. When the wormhole type
-        (and its max_stable_time) is known, this is fully computed from
-        elapsed real time (see wh_mapper.api.helpers.life_status_for_remaining_hours)
-        and these values are just labels for "hours of life left," not a
-        user choice. Only while the type is still unidentified is this
-        actually picked by hand, as a rough manual estimate.
+        (and its max_stable_time) is known, this is normally fully computed
+        from elapsed real time (see
+        wh_mapper.api.helpers.life_status_for_remaining_hours) and these
+        values are just labels for "hours of life left," not a user choice.
+        A manual pick is still allowed even once the type is known, though -
+        see wh_mapper.api.helpers.remaining_life_hours - it just only takes
+        effect when it's *more* urgent than the computed bucket, letting a
+        player correct for a hole that was already open before it got added
+        to the map.
         """
 
         STABLE = "stable", "Stable"
@@ -307,9 +311,10 @@ class Signature(models.Model):
     life_status = models.CharField(
         max_length=10, choices=LifeStatus.choices, default=LifeStatus.STABLE
     )
-    # When life_status was last manually set (only meaningful while the
-    # wormhole type is unidentified - see LifeStatus above) - distinct from
-    # updated_at, which bumps on *any* field edit (e.g. fixing sig_type) and
+    # When life_status was last manually set (see LifeStatus above - still
+    # meaningful once the wormhole type is identified, as an "at least this
+    # urgent" override) - distinct from updated_at, which bumps on *any*
+    # field edit (e.g. fixing sig_type) and
     # would otherwise keep restarting the assumed countdown for unrelated
     # changes. Used to compute how much of the manually-picked bucket's
     # assumed remaining time has elapsed - see

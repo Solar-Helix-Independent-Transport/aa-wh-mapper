@@ -641,46 +641,50 @@ export function MapCanvas({
           })),
         });
 
-        // Once the wormhole type is known, life status (from its real
-        // max_stable_time) and ship size (from its max_jump_mass) are both
-        // fully computed - manually setting either then would just be
-        // redundant (or misleading, if it disagreed), so these submenus
-        // only appear while the type is still unidentified.
+        // Life status stays editable even once the wormhole type is known -
+        // the type's real max_stable_time normally wins, but a manual pick
+        // can still override it when it's *more* urgent (see
+        // wh_mapper.api.helpers.remaining_life_hours for why: the type-based
+        // timer assumes this connection's created_at is the hole's true
+        // birth, which isn't always right).
+        items.push({
+          kind: "submenu",
+          label: "Life status",
+          items: LIFE_STATUSES.map((status) => ({
+            kind: "action",
+            label: LIFE_STATUS_LABEL[status] ?? status,
+            disabled: connection.life_status === status,
+            onClick: () =>
+              updateConnection(mapId, connectionId, {
+                life_status: status,
+              }).catch((err) => onMutationError(String(err))),
+          })),
+        });
+
+        // Once the wormhole type is known, ship size is fully computed from
+        // its real max_jump_mass - manually setting it then would just be
+        // redundant (or misleading, if it disagreed), so this submenu only
+        // appears while the type is still unidentified.
         const wormholeType = connectionWormholeType(
           connection,
           state.signatures,
         );
         if (!wormholeType) {
-          items.push(
-            {
-              kind: "submenu",
-              label: "Life status",
-              items: LIFE_STATUSES.map((status) => ({
-                kind: "action",
-                label: LIFE_STATUS_LABEL[status] ?? status,
-                disabled: connection.life_status === status,
-                onClick: () =>
-                  updateConnection(mapId, connectionId, {
-                    life_status: status,
-                  }).catch((err) => onMutationError(String(err))),
-              })),
-            },
-            {
-              kind: "submenu",
-              label: "Ship size",
-              items: SHIP_SIZE_LIMITS.map((size) => ({
-                kind: "action",
-                label: SHIP_SIZE_LABEL[size]
-                  ? `${SHIP_SIZE_LABEL[size]} - ${size}`
-                  : size,
-                disabled: connection.ship_size_limit === size,
-                onClick: () =>
-                  updateConnection(mapId, connectionId, {
-                    ship_size_limit: size,
-                  }).catch((err) => onMutationError(String(err))),
-              })),
-            },
-          );
+          items.push({
+            kind: "submenu",
+            label: "Ship size",
+            items: SHIP_SIZE_LIMITS.map((size) => ({
+              kind: "action",
+              label: SHIP_SIZE_LABEL[size]
+                ? `${SHIP_SIZE_LABEL[size]} - ${size}`
+                : size,
+              disabled: connection.ship_size_limit === size,
+              onClick: () =>
+                updateConnection(mapId, connectionId, {
+                  ship_size_limit: size,
+                }).catch((err) => onMutationError(String(err))),
+            })),
+          });
         }
       }
 

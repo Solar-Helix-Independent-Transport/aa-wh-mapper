@@ -526,10 +526,10 @@ def signature_to_schema(signature) -> dict:
 def apply_life_status(obj, new_life_status: str) -> None:
     """Set life_status on a Signature/WormholeConnection, stamping
     life_status_marked_at to match - see Signature.life_status_marked_at
-    for why that needs its own timestamp distinct from updated_at. Only
-    meaningful as a manual countdown anchor while the wormhole type is
-    still unidentified (see LifeStatus) - once the real type takes over,
-    life_status_marked_at is simply ignored.
+    for why that needs its own timestamp distinct from updated_at. This
+    remains meaningful as a manual countdown anchor even once the wormhole
+    type is identified (see LifeStatus) - remaining_life_hours only lets it
+    override the type-based timer when it's more urgent, never less.
 
     Stable is stamped too, not cleared - it counts down from
     UNKNOWN_STABLE_MAX_HOURS just like any other bucket (see
@@ -582,23 +582,39 @@ def remaining_life_hours(
     or None if there's nothing to judge by (type unidentified and no manual
     bucket has ever been picked - i.e. genuinely just "stable").
 
-    Two sources, in priority order:
+    Two sources, combined by taking whichever says less time is left:
     - The wormhole type's real max_stable_time, once identified
-    - Failing that, a manually-picked life_status bucket
+    - A manually-picked life_status bucket
+
+    The type-based figure is normally the accurate one, but it assumes
+    `reference_time` is the wormhole's true birth - which breaks if the hole
+    was already open for a while before anyone scanned/added it to the map.
+    A manual pick lets a player fold in what they actually observed
+    in-game (e.g. an in-client decay warning) to correct for that. It's only
+    ever allowed to make things *more* urgent, never less - a stale/looser
+    manual pick can't paper over a type-based timer that's already run
+    further down, which is what keeps this from being usable to reset an
+    aging hole back to looking fresh.
     """
 
     if now is None:
         now = timezone.now()
 
+    type_remaining = None
     if wormhole_type is not None and wormhole_type.max_stable_time is not None:
         elapsed_hours = (now - reference_time).total_seconds() / 3600
-        return wormhole_type.max_stable_time / 60 - elapsed_hours
+        type_remaining = wormhole_type.max_stable_time / 60 - elapsed_hours
 
+    manual_remaining = None
     if life_status_marked_at is not None and life_status in LIFE_STATUS_BUCKET_HOURS:
         elapsed_hours = (now - life_status_marked_at).total_seconds() / 3600
-        return LIFE_STATUS_BUCKET_HOURS[life_status] - elapsed_hours
+        manual_remaining = LIFE_STATUS_BUCKET_HOURS[life_status] - elapsed_hours
 
-    return None
+    if type_remaining is None:
+        return manual_remaining
+    if manual_remaining is None:
+        return type_remaining
+    return min(type_remaining, manual_remaining)
 
 
 def connection_wormhole_type(connection):

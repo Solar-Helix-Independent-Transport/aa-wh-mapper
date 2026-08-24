@@ -142,16 +142,32 @@ class TestRemainingLifeHours(TestCase):
 
         self.assertAlmostEqual(remaining, 4, places=2)
 
-    def test_known_type_ignores_manual_bucket_and_marked_at(self):
+    def test_known_type_ignores_manual_bucket_when_less_urgent(self):
+        now = timezone.now()
+        reference_time = now - timedelta(hours=20)
+        # Just marked "stable" (assumed 48h remaining) - well behind the
+        # figure of 4h remaining, so it has no effect.
+        marked_at = now
+
+        remaining = remaining_life_hours(
+            Signature.LifeStatus.STABLE, marked_at, self.wormhole_type, reference_time, now
+        )
+
+        self.assertAlmostEqual(remaining, 4, places=2)
+
+    def test_known_type_manual_bucket_overrides_when_more_urgent(self):
         now = timezone.now()
         reference_time = now - timedelta(hours=20)
         marked_at = now - timedelta(hours=47)
 
+        # Type-based figure alone would be 4h remaining, but the manual
+        # lt_1h bucket (marked 47h ago, so 1 - 47 = -46h "remaining") is far
+        # more urgent, so it wins.
         remaining = remaining_life_hours(
             Signature.LifeStatus.LESS_THAN_1H, marked_at, self.wormhole_type, reference_time, now
         )
 
-        self.assertAlmostEqual(remaining, 4, places=2)
+        self.assertAlmostEqual(remaining, -46, places=2)
 
     def test_unknown_type_falls_back_to_manual_bucket_and_marked_at(self):
         now = timezone.now()
@@ -523,7 +539,13 @@ class TestConnectionTimeStatus(TestCase):
             item_type=item_type, code="K162", max_stable_time=1600
         )
 
-    def _make_connection(self, age_minutes, life_status=Signature.LifeStatus.STABLE, wormhole_type=None):
+    def _make_connection(
+        self,
+        age_minutes,
+        life_status=Signature.LifeStatus.STABLE,
+        wormhole_type=None,
+        life_status_marked_at=None,
+    ):
         signature = Signature.objects.create(
             map_system=self.bottom_system,
             signature_id="ABC-123",
@@ -536,6 +558,7 @@ class TestConnectionTimeStatus(TestCase):
             bottom_system=self.bottom_system,
             bottom_signature=signature,
             life_status=life_status,
+            life_status_marked_at=life_status_marked_at,
         )
         WormholeConnection.objects.filter(pk=connection.pk).update(
             created_at=timezone.now() - timedelta(minutes=age_minutes)
@@ -557,17 +580,29 @@ class TestConnectionTimeStatus(TestCase):
         connection = self._make_connection(age_minutes=1440, wormhole_type=self.wormhole_type)
         self.assertEqual(connection_time_status(connection), "red")
 
-    def test_manual_life_status_is_ignored_once_type_is_known(self):
-        # Once the wormhole type is identified, life_status is computed
-        # purely from real elapsed time vs its max_stable_time - a stale
-        # manual bucket (e.g. picked before the type was known) no longer
-        # has any effect.
+    def test_manual_life_status_is_ignored_once_type_is_known_if_less_urgent(self):
+        # A manual pick that's *less* urgent than the type-based timer never
+        # overrides it - a stale "stable"/loose bucket can't make an aging
+        # hole look safer than it really is.
         connection = self._make_connection(
             age_minutes=10,
-            life_status=Signature.LifeStatus.LESS_THAN_1H,
+            life_status=Signature.LifeStatus.STABLE,
+            life_status_marked_at=timezone.now(),
             wormhole_type=self.wormhole_type,
         )
         self.assertEqual(connection_time_status(connection), "green")
+
+    def test_manual_life_status_overrides_once_type_is_known_if_more_urgent(self):
+        # A manual pick that's *more* urgent than the type-based timer does
+        # override it - lets a player correct for a hole whose real age
+        # (per an in-game decay warning) is worse than created_at implies.
+        connection = self._make_connection(
+            age_minutes=10,
+            life_status=Signature.LifeStatus.LESS_THAN_1H,
+            life_status_marked_at=timezone.now(),
+            wormhole_type=self.wormhole_type,
+        )
+        self.assertEqual(connection_time_status(connection), "red")
 
     def test_manual_critical_bucket_is_red_when_type_unknown(self):
         connection = self._make_connection(

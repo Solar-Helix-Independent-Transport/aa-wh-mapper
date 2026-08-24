@@ -84,6 +84,29 @@ describe("effectiveLifeStatus", () => {
     ).toBe("lt_12h");
   });
 
+  it("lets a manual bucket override the type's timer when it's more urgent", () => {
+    const wormholeType = makeWormholeType({ max_stable_time: 24 * 60 });
+    const referenceTime = "2026-01-01T12:00:00Z"; // 12h elapsed, 12h remaining
+    // Manually marked lt_1h an hour ago -> already 0h remaining under that
+    // bucket's own countdown, more urgent than the type's 12h.
+    const markedAt = "2026-01-01T23:00:00Z";
+
+    expect(
+      effectiveLifeStatus("lt_1h", markedAt, wormholeType, referenceTime, now),
+    ).toBe("lt_1h");
+  });
+
+  it("ignores a manual bucket that's less urgent than the type's timer", () => {
+    const wormholeType = makeWormholeType({ max_stable_time: 24 * 60 });
+    const referenceTime = "2026-01-01T12:00:00Z"; // 12h elapsed, 12h remaining
+    // Freshly marked "stable" (48h assumed) - well behind the type's 12h.
+    const markedAt = "2026-01-02T00:00:00Z";
+
+    expect(
+      effectiveLifeStatus("stable", markedAt, wormholeType, referenceTime, now),
+    ).toBe("lt_12h");
+  });
+
   it("falls back to the manually-picked bucket when no wormhole type is known", () => {
     // lt_4h's bucket starts its countdown from 4h; 3.5h elapsed since
     // markedAt leaves 0.5h remaining, which re-buckets down into lt_1h.

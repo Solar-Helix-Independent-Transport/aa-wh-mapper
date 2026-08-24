@@ -108,16 +108,18 @@ function lifeStatusForRemainingHours(remainingHours: number): string {
 
 // The current life_status bucket for a signature/connection, computed live
 // rather than trusting the stored field directly - mirrors
-// wh_mapper.api.helpers.connection_effective_life_status (also used there
-// server-side, for wh_mapper.tasks.age_wormhole_connections' pruning and for
-// connection_time_status's edge coloring). Two sources, in priority order:
-// the wormhole type's real max_stable_time once identified (elapsed time
-// measured from `referenceTime` - a connection's created_at, or a
-// signature's updated_at), or failing that, a manually-picked bucket
-// counting down from lifeStatusMarkedAt. Ticking `now` forward (see useNow)
-// lets the displayed bucket keep advancing between server pushes, all the
-// way up to the final "lt_1h" - only the eventual delete needs an actual
-// server push.
+// wh_mapper.api.helpers.connection_effective_life_status/remaining_life_hours
+// (also used there server-side, for wh_mapper.tasks.age_wormhole_connections'
+// pruning and for connection_time_status's edge coloring). Two sources,
+// combined by taking whichever says less time is left: the wormhole type's
+// real max_stable_time once identified (elapsed time measured from
+// `referenceTime` - a connection's created_at, or a signature's updated_at),
+// and a manually-picked bucket counting down from lifeStatusMarkedAt. The
+// manual pick only ever makes the result *more* urgent, never less - see
+// remaining_life_hours for why (reference_time isn't necessarily the hole's
+// true birth). Ticking `now` forward (see useNow) lets the displayed bucket
+// keep advancing between server pushes, all the way up to the final "lt_1h"
+// - only the eventual delete needs an actual server push.
 export function effectiveLifeStatus(
   lifeStatus: string,
   lifeStatusMarkedAt: string | null,
@@ -125,21 +127,30 @@ export function effectiveLifeStatus(
   referenceTime: string,
   now: number,
 ): string {
+  let typeRemaining: number | null = null;
   if (wormholeType?.max_stable_time != null) {
     const elapsedHours =
       (now - new Date(referenceTime).getTime()) / (1000 * 60 * 60);
-    return lifeStatusForRemainingHours(
-      wormholeType.max_stable_time / 60 - elapsedHours,
-    );
+    typeRemaining = wormholeType.max_stable_time / 60 - elapsedHours;
   }
+
+  let manualRemaining: number | null = null;
   if (lifeStatusMarkedAt && lifeStatus in LIFE_STATUS_BUCKET_HOURS) {
     const elapsedHours =
       (now - new Date(lifeStatusMarkedAt).getTime()) / (1000 * 60 * 60);
-    return lifeStatusForRemainingHours(
-      LIFE_STATUS_BUCKET_HOURS[lifeStatus] - elapsedHours,
-    );
+    manualRemaining = LIFE_STATUS_BUCKET_HOURS[lifeStatus] - elapsedHours;
   }
-  return lifeStatus;
+
+  if (typeRemaining === null && manualRemaining === null) {
+    return lifeStatus;
+  }
+  if (typeRemaining === null) {
+    return lifeStatusForRemainingHours(manualRemaining as number);
+  }
+  if (manualRemaining === null) {
+    return lifeStatusForRemainingHours(typeRemaining);
+  }
+  return lifeStatusForRemainingHours(Math.min(typeRemaining, manualRemaining));
 }
 
 // The WormholeType backing a connection, from whichever end's Signature has
