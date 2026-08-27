@@ -26,7 +26,15 @@ export interface ParsedSignatureRow {
   sigType?: string;
 }
 
-export function parseProbeScanPaste(text: string): ParsedSignatureRow[] {
+export function parseProbeScanPaste(
+  text: string,
+  // The five Drifter regions never spawn anything but wormholes - no
+  // combat/data/relic/gas/ore sites exist there - so every signature pasted
+  // into one, resolved or not, is classified as a wormhole outright rather
+  // than falling back to "unknown" until someone scans it down. See
+  // SignaturePanel's use of wormholeClass.ts's isDrifterWormholeClass.
+  assumeWormhole = false,
+): ParsedSignatureRow[] {
   const rows: ParsedSignatureRow[] = [];
 
   for (const line of text.split("\n")) {
@@ -36,10 +44,12 @@ export function parseProbeScanPaste(text: string): ParsedSignatureRow[] {
       continue;
     }
 
-    const sigType = columns
-      .slice(1)
-      .map((column) => GROUP_TO_SIG_TYPE[column.toLowerCase()])
-      .find((value) => value !== undefined);
+    const sigType = assumeWormhole
+      ? "wormhole"
+      : columns
+          .slice(1)
+          .map((column) => GROUP_TO_SIG_TYPE[column.toLowerCase()])
+          .find((value) => value !== undefined);
 
     rows.push({ signatureId: signatureId.toUpperCase(), sigType });
   }

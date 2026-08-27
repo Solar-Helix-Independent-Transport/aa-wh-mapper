@@ -3,6 +3,7 @@ import type { SignatureOut, WormholeTypeOut } from "../api/types";
 import {
   connectionWormholeType,
   effectiveLifeStatus,
+  isDrifterWormholeClass,
   shipSizeForJumpMass,
   wormholeClassLabel,
   wormholeTypeDatalistOptions,
@@ -55,6 +56,26 @@ describe("wormholeClassLabel", () => {
   it("falls back to a generic label for an unrecognized class id", () => {
     expect(wormholeClassLabel(999)).toBe("Class 999");
   });
+});
+
+describe("isDrifterWormholeClass", () => {
+  it("returns false for a null class id", () => {
+    expect(isDrifterWormholeClass(null)).toBe(false);
+  });
+
+  it.each([14, 15, 16, 17, 18])(
+    "returns true for Drifter class %s",
+    (classId) => {
+      expect(isDrifterWormholeClass(classId)).toBe(true);
+    },
+  );
+
+  it.each([1, 6, 7, 12, 13])(
+    "returns false for non-Drifter class %s",
+    (classId) => {
+      expect(isDrifterWormholeClass(classId)).toBe(false);
+    },
+  );
 });
 
 describe("shipSizeForJumpMass", () => {

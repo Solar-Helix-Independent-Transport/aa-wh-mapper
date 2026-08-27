@@ -36,6 +36,7 @@ import { ConnectSignatureDialog } from "./ConnectSignatureDialog";
 import {
   connectionWormholeType,
   effectiveLifeStatus,
+  isDrifterWormholeClass,
   shipSizeForJumpMass,
   wormholeTypeDatalistOptions,
   wormholeTypeSummary,
@@ -195,6 +196,9 @@ export function SignaturePanel({
   // into the closures below (TS re-widens captured variables inside function
   // expressions) - use this instead of `systemId` there.
   const currentSystemId = system.id;
+  const currentSystemIsDrifter = isDrifterWormholeClass(
+    system.solar_system.wormhole_class_id,
+  );
   const signatures = state.signatures.filter(
     (s) => s.map_system_id === currentSystemId,
   );
@@ -264,7 +268,7 @@ export function SignaturePanel({
 
   const handlePasteImport = async (event: React.FormEvent) => {
     event.preventDefault();
-    const rows = parseProbeScanPaste(pasteText);
+    const rows = parseProbeScanPaste(pasteText, currentSystemIsDrifter);
     if (rows.length === 0 && !lazyDelete) {
       return;
     }

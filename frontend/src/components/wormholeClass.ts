@@ -54,6 +54,15 @@ export function wormholeClassLabel(classId: number | null): string | null {
   return CLASS_LABELS[classId] ?? `Class ${classId}`;
 }
 
+// The five Drifter regions (see CLASS_LABELS 14-18 above) - unlike ordinary
+// J-space, they only ever spawn wormholes, no combat/data/relic/gas/ore
+// sites. Mirrors wh_mapper.constants.DRIFTER_SYSTEM_CLASS's value range.
+const DRIFTER_CLASS_IDS = new Set([14, 15, 16, 17, 18]);
+
+export function isDrifterWormholeClass(classId: number | null): boolean {
+  return classId !== null && DRIFTER_CLASS_IDS.has(classId);
+}
+
 // Thresholds (kg) separating wormhole ship-size classes by max jump mass -
 // community convention (Frigate/Medium/Large/XL breakpoints), same caveat as
 // CLASS_LABELS above: not verified against a real imported SDE, treat as a

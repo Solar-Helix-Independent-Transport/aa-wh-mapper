@@ -54,4 +54,20 @@ describe("parseProbeScanPaste", () => {
     );
     expect(row.sigType).toBeUndefined();
   });
+
+  describe("assumeWormhole (Drifter systems - nothing else spawns there)", () => {
+    it("classifies an unresolved (id-only) signature as a wormhole", () => {
+      expect(parseProbeScanPaste("ABC-123\t50%\t1,200,000 m", true)).toEqual([
+        { signatureId: "ABC-123", sigType: "wormhole" },
+      ]);
+    });
+
+    it("overrides a resolved non-wormhole group too", () => {
+      const [row] = parseProbeScanPaste(
+        "XYZ-789\tCosmic Signature\tCombat Site\t100%",
+        true,
+      );
+      expect(row.sigType).toBe("wormhole");
+    });
+  });
 });
