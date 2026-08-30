@@ -262,5 +262,5 @@ repos:
     hooks:
       - id: prettier
         name: prettier
-        entry: npx prettier@3.5.0 --write --ignore-unknown --check
+        entry: npx --no-cache prettier@3.5.0 --write --ignore-unknown --check
         language: system
