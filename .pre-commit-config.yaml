@@ -258,9 +258,14 @@ repos:
         args:
           - --verbose
 
-  - repo: local
+  # - repo: local
+  #   hooks:
+  #     - id: prettier
+  #       name: prettier
+  #       entry: npx --no-cache prettier@3.5.0 --write --ignore-unknown --check .
+  #       language: system
+
+  - repo: https://github.com/34j/mirrors-prettier
+    rev: "main" # Use the sha / tag you want to point at
     hooks:
       - id: prettier
-        name: prettier
-        entry: npx --no-cache prettier@3.5.0 --write --ignore-unknown --check
-        language: system
