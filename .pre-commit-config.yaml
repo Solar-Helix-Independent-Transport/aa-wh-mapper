@@ -266,6 +266,6 @@ repos:
   #       language: system
 
   - repo: https://github.com/34j/mirrors-prettier
-    rev: "main" # Use the sha / tag you want to point at
+    rev: "2af6ea8084b6b784c6f4defa8a3f5dd8b6c56571" # frozen: v3.9.6
     hooks:
       - id: prettier
