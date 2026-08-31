@@ -258,14 +258,15 @@ repos:
         args:
           - --verbose
 
-  # - repo: local
-  #   hooks:
-  #     - id: prettier
-  #       name: prettier
-  #       entry: npx --no-cache prettier@3.5.0 --write --ignore-unknown --check .
-  #       language: system
-
-  - repo: https://github.com/34j/mirrors-prettier
-    rev: "2af6ea8084b6b784c6f4defa8a3f5dd8b6c56571" # frozen: v3.9.6
+  # mirrors-prettier's node-language hook installs via `npm install -g git+file://...`,
+  # which npm now refuses by default (EALLOWGIT) - use system npx instead.
+  - repo: local
     hooks:
       - id: prettier
+        name: prettier
+        entry: prettier
+        args: [--check, --ignore-unknown, --write]
+        language: node
+        types: [text]
+        additional_dependencies:
+          - prettier@3.9.5
