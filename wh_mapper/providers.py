@@ -21,7 +21,7 @@ esi = ESIClientProvider(
         "GetCharactersCharacterIdFleet",
         "GetFleetsFleetIdMembers",
     ],
-    additional_spec_headers={
-        "Authorization": f"Bearer {Token.objects.filter(character_id=2119950231).first().valid_access_token()}",
-    }
+    # additional_spec_headers={
+    #     "Authorization": f"Bearer {Token.objects.filter(character_id=2119950231).first().valid_access_token()}",
+    # }
 )
