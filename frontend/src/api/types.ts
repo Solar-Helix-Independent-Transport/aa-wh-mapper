@@ -239,6 +239,10 @@ export interface RegionImportResult {
   connections_added: number;
 }
 
+export interface AutoLayoutResult {
+  updated: number;
+}
+
 export interface SignatureBulkResult {
   signatures: SignatureOut[];
   removed_signature_ids: number[];

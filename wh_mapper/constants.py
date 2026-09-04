@@ -19,7 +19,7 @@ LOCATION_SCOPES = [
 # FLEET_POLL_RESCHEDULE_SECONDS below (they used to be one shared constant)
 # so tightening character-location polling doesn't also silently speed up
 # fleet-session polling, a separate feature with its own ESI load profile.
-CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS = 6
+CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS = 3
 
 # How often (seconds) poll_fleet_tracking_sessions reschedules itself while
 # any session is active - see wh_mapper.tasks. ESI's fleet-members endpoint

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
-import { getMapState } from "../api/maps";
+import { autoLayoutSystems, getMapState } from "../api/maps";
 import type {
   JumpNeedsSignaturePrompt,
   MapStateOut,
@@ -17,6 +17,7 @@ import { useMapSocket } from "../hooks/useMapSocket";
 import { useResizablePanel } from "../hooks/useResizablePanel";
 import { AppHeader } from "./AppHeader";
 import { ConnectionFlagsPanel } from "./ConnectionFlagsPanel";
+import { ConnectionStatusBanner } from "./ConnectionStatusBanner";
 import type { ContextMenuItem } from "./ContextMenu";
 import { IdentifyJumpSignatureDialog } from "./IdentifyJumpSignatureDialog";
 import { LoadingState } from "./LoadingState";
@@ -29,6 +30,7 @@ import { ImportRegionDialog } from "./ImportRegionDialog";
 import { ShareDialog } from "./ShareDialog";
 import { UniverseRegionsDialog } from "./UniverseRegionsDialog";
 import { applyMapEvent } from "./mapEvents";
+import { computeAutoLayout } from "./mapLayout";
 
 interface Props {
   mapId: number;
@@ -79,6 +81,16 @@ export function MapView({ mapId }: Props) {
   const refreshQueuedRef = useRef(false);
   const pendingEventsRef = useRef<Parameters<typeof applyMapEvent>[1][]>([]);
 
+  // Tracks whether the map has ever loaded successfully, so a refresh
+  // failure after that point (a live-socket-triggered resync, or a mutation
+  // error's own follow-up refresh - see handleMutationError) can be shown as
+  // a dismissible toast over the still-visible map instead of blanking the
+  // whole page the way a true first-load failure does. A ref rather than
+  // deriving from `state` directly - `refresh` is memoized once per mapId,
+  // so a plain closure over `state` would stay stuck on whatever it was the
+  // first time `refresh` was created.
+  const hasLoadedRef = useRef(false);
+
   const refresh = useCallback(() => {
     // A named function declaration (rather than calling the outer `refresh`
     // const itself) so the re-run-once-queued case below can recurse
@@ -94,9 +106,17 @@ export function MapView({ mapId }: Props) {
       pendingEventsRef.current = [];
       getMapState(mapId)
         .then((fetched) => {
+          hasLoadedRef.current = true;
+          setError(null);
           setState(pendingEventsRef.current.reduce(applyMapEvent, fetched));
         })
-        .catch((err) => setError(String(err)))
+        .catch((err) => {
+          if (hasLoadedRef.current) {
+            setActionError(`Failed to refresh map: ${err}`);
+          } else {
+            setError(String(err));
+          }
+        })
         .finally(() => {
           refreshInFlightRef.current = false;
           pendingEventsRef.current = [];
@@ -142,7 +162,7 @@ export function MapView({ mapId }: Props) {
 
   // Resync via the state endpoint whenever the socket (re)connects, since it
   // only carries deltas from the moment it opens.
-  useMapSocket(mapId, handleEvent, refresh);
+  const socketStatus = useMapSocket(mapId, handleEvent, refresh);
 
   // A canvas mutation (move/pin/delete a system, add/edit/remove a
   // connection) already applied its change optimistically before the
@@ -169,20 +189,18 @@ export function MapView({ mapId }: Props) {
     );
   }, []);
 
-  if (error) {
-    return (
-      <>
-        <AppHeader />
-        <p className="error">Failed to load map: {error}</p>
-      </>
-    );
-  }
-
+  // Only blocks the whole page while there's genuinely nothing to show yet -
+  // once a map has loaded once, a later refresh failure surfaces as a toast
+  // over the still-visible map instead (see refresh's hasLoadedRef check).
   if (!state) {
     return (
       <>
         <AppHeader />
-        <LoadingState label="Loading map…" />
+        {error ? (
+          <p className="error">Failed to load map: {error}</p>
+        ) : (
+          <LoadingState label="Loading map…" />
+        )}
       </>
     );
   }
@@ -220,6 +238,33 @@ export function MapView({ mapId }: Props) {
         }));
       return restored.length > 0 ? [...current, ...restored] : current;
     });
+  };
+
+  // Computed client-side (MapCanvas/SystemNode's rendered dimensions are
+  // only known here, not on the backend - see mapLayout.ts), then applied
+  // in one bulk request so every other viewer gets a single map.resync
+  // instead of a broadcast per moved system.
+  const handleAutoLayout = async () => {
+    const positions = computeAutoLayout(state.systems, state.connections);
+    if (positions.length === 0) {
+      return;
+    }
+    const pinnedCount = state.systems.length - positions.length;
+    const confirmed = window.confirm(
+      `Auto-arrange ${positions.length} system${positions.length === 1 ? "" : "s"}?` +
+        (pinnedCount > 0
+          ? ` ${pinnedCount} pinned system${pinnedCount === 1 ? "" : "s"} will stay put.`
+          : ""),
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await autoLayoutSystems(mapId, positions);
+      refresh();
+    } catch (err) {
+      setActionError(`Failed to auto-arrange map: ${err}`);
+    }
   };
 
   const openAddSystem = (position?: { x: number; y: number }) => {
@@ -282,6 +327,15 @@ export function MapView({ mapId }: Props) {
           },
         ]
       : []),
+    ...(canWrite && state.systems.length > 1
+      ? [
+          {
+            kind: "action" as const,
+            label: "Auto-arrange",
+            onClick: handleAutoLayout,
+          },
+        ]
+      : []),
     ...(canWrite
       ? [
           {
@@ -320,6 +374,7 @@ export function MapView({ mapId }: Props) {
         }
         overflowItems={overflowItems}
         trackedCharacterCount={state.tracked_characters.length}
+        socketStatus={socketStatus}
       />
 
       <div className="map-view-body">
@@ -334,6 +389,7 @@ export function MapView({ mapId }: Props) {
               onMutationError={handleMutationError}
               readOnly={!canWrite}
             />
+            <ConnectionStatusBanner status={socketStatus} />
             {actionError && (
               <div className="action-error-toast" role="alert">
                 <span>{actionError}</span>

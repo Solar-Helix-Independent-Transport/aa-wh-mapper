@@ -104,12 +104,16 @@ describe("SharedRoute", () => {
     expect(screen.getByText(/not found/)).toBeInTheDocument();
   });
 
-  it("titles the toolbar with the start/end systems and a Live badge", async () => {
+  it("titles the toolbar with the start/end systems and a Live badge once the socket opens", async () => {
     vi.mocked(getSharedRoute).mockResolvedValue(sharedRoute());
     renderRoute();
     await flush();
 
     expect(screen.getByText("Jita → Amarr")).toBeInTheDocument();
+    expect(screen.getByText("Connecting…")).toBeInTheDocument();
+
+    FakeWebSocket.instances[0].triggerOpen();
+    await flush();
     expect(screen.getByText("Live")).toBeInTheDocument();
   });
 

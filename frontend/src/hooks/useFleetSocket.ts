@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   TERMINAL_WS_CLOSE_CODES,
   WH_MAPPER_URL_PREFIX,
   WS_RECONNECT_INITIAL_DELAY_MS,
   WS_RECONNECT_MAX_DELAY_MS,
 } from "../constants";
+import { closeSocketGracefully, type SocketStatus } from "./useMapSocket";
 
 export interface FleetEvent {
   event: string;
@@ -35,8 +36,14 @@ function getWsOrigin(): string {
 export function useFleetSocket(
   sessionId: number | null,
   onEvent: (event: FleetEvent) => void,
-) {
+): SocketStatus {
   const onEventRef = useRef(onEvent);
+  // Tagged with the sessionId it's for - see useMapSocket's matching field
+  // for why (avoids a synchronous setState at the top of the effect).
+  const [statusState, setStatusState] = useState<{
+    id: number | null;
+    status: SocketStatus;
+  }>({ id: null, status: "connecting" });
 
   useEffect(() => {
     onEventRef.current = onEvent;
@@ -58,7 +65,11 @@ export function useFleetSocket(
       );
 
       socket.onopen = () => {
+        if (closedByEffect) {
+          return;
+        }
         retryDelay = WS_RECONNECT_INITIAL_DELAY_MS;
+        setStatusState({ id: sessionId, status: "open" });
       };
 
       socket.onmessage = (message) => {
@@ -70,9 +81,14 @@ export function useFleetSocket(
       };
 
       socket.onclose = (event) => {
-        if (closedByEffect || TERMINAL_WS_CLOSE_CODES.has(event.code)) {
+        if (closedByEffect) {
           return;
         }
+        if (TERMINAL_WS_CLOSE_CODES.has(event.code)) {
+          setStatusState({ id: sessionId, status: "closed" });
+          return;
+        }
+        setStatusState({ id: sessionId, status: "reconnecting" });
         retryTimeout = setTimeout(connect, retryDelay);
         retryDelay = Math.min(retryDelay * 2, WS_RECONNECT_MAX_DELAY_MS);
       };
@@ -85,7 +101,9 @@ export function useFleetSocket(
       if (retryTimeout) {
         clearTimeout(retryTimeout);
       }
-      socket?.close();
+      closeSocketGracefully(socket);
     };
   }, [sessionId]);
+
+  return statusState.id === sessionId ? statusState.status : "connecting";
 }

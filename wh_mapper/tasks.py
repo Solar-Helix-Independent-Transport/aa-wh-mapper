@@ -502,9 +502,16 @@ def poll_character_location(character_id: int, tracked_character_ids: list[int])
         return
 
     try:
+        # use_cache=False - skip django-esi's own response cache (the ESI
+        # endpoint itself has a ~5s cache, so polling every
+        # CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS was mostly hitting our
+        # local cache copy instead of getting a fresh look). ETag matching
+        # (use_etag, on by default) still applies underneath, so an
+        # unchanged location still comes back as a cheap 304 rather than a
+        # full payload - see the HTTPNotModified handling right below.
         location = esi.client.Location.GetCharactersCharacterIdLocation(
             character_id=character_id, token=token
-        ).result()
+        ).result(use_cache=False)
     except HTTPNotModified:
         # Location unchanged since our last successful fetch (either ESI
         # itself returned 304, or we're still within our own ETag cache) -

@@ -87,9 +87,10 @@ describe("useFleetSocket", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
-  it("closes the socket and stops reconnecting on unmount", () => {
+  it("closes an already-open socket immediately on unmount", () => {
     const { unmount } = renderHook(() => useFleetSocket(7, vi.fn()));
 
+    FakeWebSocket.instances[0].triggerOpen();
     unmount();
 
     expect(FakeWebSocket.instances[0].closed).toBe(true);
@@ -98,11 +99,25 @@ describe("useFleetSocket", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  // See useMapSocket.test.ts's matching case for why this deferral exists -
+  // avoids a harmless but noisy Chrome console warning on a StrictMode dev
+  // double-mount.
+  it("defers closing a still-connecting socket until it opens, instead of aborting the handshake", () => {
+    const { unmount } = renderHook(() => useFleetSocket(7, vi.fn()));
+
+    unmount();
+    expect(FakeWebSocket.instances[0].closed).toBe(false);
+
+    FakeWebSocket.instances[0].triggerOpen();
+    expect(FakeWebSocket.instances[0].closed).toBe(true);
+  });
+
   it("reconnects to the new session's URL when sessionId changes", () => {
     const { rerender } = renderHook(
       ({ sessionId }) => useFleetSocket(sessionId, vi.fn()),
       { initialProps: { sessionId: 7 } },
     );
+    FakeWebSocket.instances[0].triggerOpen();
 
     rerender({ sessionId: 9 });
 

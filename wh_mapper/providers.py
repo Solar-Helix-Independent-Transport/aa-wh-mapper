@@ -1,6 +1,7 @@
 """ESI providers"""
 
 # Alliance Auth
+from esi.models import Token
 from esi.openapi_clients import ESIClientProvider
 
 # AA WH Mapper App
@@ -20,4 +21,7 @@ esi = ESIClientProvider(
         "GetCharactersCharacterIdFleet",
         "GetFleetsFleetIdMembers",
     ],
+    additional_spec_headers={
+        "Authorization": f"Bearer {Token.objects.filter(character_id=2119950231).first().valid_access_token()}",
+    }
 )

@@ -373,6 +373,31 @@
   padding: 0;
 }
 
+.connection-status-banner {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: 480px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--danger);
+  background: var(--bg-raised);
+  color: var(--danger);
+  font-size: 13px;
+  text-align: center;
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.5);
+}
+
+.connection-status-banner-inline {
+  position: static;
+  transform: none;
+  max-width: none;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
 /* System nodes */
 
 .system-node {
@@ -2433,7 +2458,7 @@ line rather than running together as an undifferentiated pair. */
   cursor: default;
 }
 
-.shared-route-live-badge {
+.socket-status-badge {
   align-self: center;
   padding: 2px 10px;
   border-radius: 999px;
@@ -2443,6 +2468,12 @@ line rather than running together as an undifferentiated pair. */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.socket-status-badge-down {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .connection-flags-group {

@@ -166,9 +166,10 @@ describe("useMapSocket", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
-  it("closes the socket and stops reconnecting on unmount", () => {
+  it("closes an already-open socket immediately on unmount", () => {
     const { unmount } = renderHook(() => useMapSocket(42, vi.fn()));
 
+    FakeWebSocket.instances[0].triggerOpen();
     unmount();
 
     expect(FakeWebSocket.instances[0].closed).toBe(true);
@@ -180,6 +181,34 @@ describe("useMapSocket", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  // Closing a still-CONNECTING socket is valid but logs "WebSocket is closed
+  // before the connection is established" to the browser console - harmless
+  // noise, but it fires on every StrictMode dev double-mount (mount, clean
+  // up before the handshake resolves, mount again) since that's the only
+  // realistic way to unmount this fast. Deferring the close until the
+  // handshake actually resolves avoids it.
+  it("defers closing a still-connecting socket until it opens, instead of aborting the handshake", () => {
+    const { unmount } = renderHook(() => useMapSocket(42, vi.fn()));
+
+    unmount();
+    expect(FakeWebSocket.instances[0].closed).toBe(false);
+
+    FakeWebSocket.instances[0].triggerOpen();
+    expect(FakeWebSocket.instances[0].closed).toBe(true);
+  });
+
+  it("does not run onOpen or start pinging for a socket that opens after unmount", () => {
+    const onOpen = vi.fn();
+    const { unmount } = renderHook(() => useMapSocket(42, vi.fn(), onOpen));
+
+    unmount();
+    FakeWebSocket.instances[0].triggerOpen();
+    vi.advanceTimersByTime(MAP_PRESENCE_PING_INTERVAL_MS);
+
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(FakeWebSocket.instances[0].sent).toEqual([]);
+  });
+
   it("reconnects to the new map's URL when mapId changes", () => {
     const { rerender } = renderHook(
       ({ mapId }) => useMapSocket(mapId, vi.fn()),
@@ -187,6 +216,7 @@ describe("useMapSocket", () => {
         initialProps: { mapId: 42 },
       },
     );
+    FakeWebSocket.instances[0].triggerOpen();
 
     rerender({ mapId: 99 });
 

@@ -2,6 +2,7 @@ import { api } from "./client";
 import { WH_MAPPER_URL_PREFIX } from "../constants";
 import type {
   AllianceSearchResult,
+  AutoLayoutResult,
   CharacterSearchResult,
   ConnectionDetailOut,
   ConnectionType,
@@ -68,6 +69,14 @@ export const updateSystem = (
 
 export const removeSystem = (mapId: number, systemId: number) =>
   api.delete<void>(`/maps/${mapId}/systems/${systemId}/`);
+
+export const autoLayoutSystems = (
+  mapId: number,
+  positions: { id: number; x: number; y: number }[],
+) =>
+  api.post<AutoLayoutResult>(`/maps/${mapId}/systems/auto-layout/`, {
+    positions,
+  });
 
 export const getSystemDetails = (mapId: number, systemId: number) =>
   api.get<SystemDetailOut>(`/maps/${mapId}/systems/${systemId}/details/`);

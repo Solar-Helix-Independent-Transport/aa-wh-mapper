@@ -72,15 +72,29 @@ describe("useRouteSocket", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
-  it("closes the socket and stops reconnecting on unmount", () => {
+  it("closes an already-open socket immediately on unmount", () => {
     const { unmount } = renderHook(() => useRouteSocket(3, vi.fn()));
 
+    FakeWebSocket.instances[0].triggerOpen();
     unmount();
 
     expect(FakeWebSocket.instances[0].closed).toBe(true);
     FakeWebSocket.instances[0].triggerClose(1006);
     vi.advanceTimersByTime(WS_RECONNECT_MAX_DELAY_MS);
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  // See useMapSocket.test.ts's matching case for why this deferral exists -
+  // avoids a harmless but noisy Chrome console warning on a StrictMode dev
+  // double-mount.
+  it("defers closing a still-connecting socket until it opens, instead of aborting the handshake", () => {
+    const { unmount } = renderHook(() => useRouteSocket(3, vi.fn()));
+
+    unmount();
+    expect(FakeWebSocket.instances[0].closed).toBe(false);
+
+    FakeWebSocket.instances[0].triggerOpen();
+    expect(FakeWebSocket.instances[0].closed).toBe(true);
   });
 
   it("reconnects to the new route's URL when routeId changes", () => {
@@ -90,6 +104,7 @@ describe("useRouteSocket", () => {
         initialProps: { routeId: 3 },
       },
     );
+    FakeWebSocket.instances[0].triggerOpen();
 
     rerender({ routeId: 5 });
 

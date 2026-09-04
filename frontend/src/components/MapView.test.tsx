@@ -1,8 +1,13 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getMapState } from "../api/maps";
-import type { MapOut, MapStateOut, WormholeConnectionOut } from "../api/types";
+import { autoLayoutSystems, getMapState } from "../api/maps";
+import type {
+  MapOut,
+  MapStateOut,
+  MapSystemOut,
+  WormholeConnectionOut,
+} from "../api/types";
 import {
   installFakeWebSocket,
   FakeWebSocket,
@@ -11,6 +16,7 @@ import { MapView } from "./MapView";
 
 vi.mock("../api/maps", () => ({
   getMapState: vi.fn(),
+  autoLayoutSystems: vi.fn(),
 }));
 
 let capturedMapCanvasProps: Record<string, unknown> = {};
@@ -154,6 +160,32 @@ function connection(
   };
 }
 
+function mapSystem(overrides: Partial<MapSystemOut> = {}): MapSystemOut {
+  return {
+    id: 1,
+    map_id: 1,
+    solar_system: {
+      id: 100,
+      name: "Jita",
+      security_status: 0.9,
+      wormhole_class_id: null,
+      visual_effect: null,
+      constellation_name: null,
+      region_name: null,
+      space_type: "High Sec",
+      owner: null,
+      statics: [],
+    },
+    label: "",
+    x: 0,
+    y: 0,
+    pinned: false,
+    added_by_id: null,
+    added_at: "",
+    ...overrides,
+  };
+}
+
 function state(overrides: Partial<MapStateOut> = {}): MapStateOut {
   return {
     map: mapOut(),
@@ -176,12 +208,14 @@ describe("MapView", () => {
   beforeEach(() => {
     installFakeWebSocket();
     vi.mocked(getMapState).mockReset();
+    vi.mocked(autoLayoutSystems).mockReset();
     capturedMapCanvasProps = {};
     capturedSignaturePanelProps = {};
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("shows a loading state before the map arrives", () => {
@@ -366,6 +400,100 @@ describe("MapView", () => {
     ).toBeInTheDocument();
   });
 
+  it("offers Auto-arrange only for a writable map with more than one system", async () => {
+    vi.mocked(getMapState).mockResolvedValue(
+      state({ systems: [mapSystem({ id: 1 })] }),
+    );
+    render(<MapView mapId={1} />, { wrapper: MemoryRouter });
+    await flush();
+    fireEvent.click(screen.getByTitle("More actions"));
+
+    expect(
+      screen.queryByRole("button", { name: "Auto-arrange" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Auto-arrange on a read-only map even with multiple systems", async () => {
+    vi.mocked(getMapState).mockResolvedValue(
+      state({
+        map: mapOut({ can_write: false }),
+        systems: [mapSystem({ id: 1 }), mapSystem({ id: 2, x: 50, y: 50 })],
+      }),
+    );
+    render(<MapView mapId={1} />, { wrapper: MemoryRouter });
+    await flush();
+    fireEvent.click(screen.getByTitle("More actions"));
+
+    expect(
+      screen.queryByRole("button", { name: "Auto-arrange" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("auto-arranges after confirmation, applying the layout and refreshing", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(getMapState).mockResolvedValue(
+      state({
+        systems: [mapSystem({ id: 1 }), mapSystem({ id: 2, x: 50, y: 50 })],
+      }),
+    );
+    vi.mocked(autoLayoutSystems).mockResolvedValue({ updated: 2 });
+    render(<MapView mapId={1} />, { wrapper: MemoryRouter });
+    await flush();
+
+    fireEvent.click(screen.getByTitle("More actions"));
+    fireEvent.click(screen.getByRole("button", { name: "Auto-arrange" }));
+    await flush();
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(autoLayoutSystems).toHaveBeenCalledWith(
+      1,
+      expect.arrayContaining([
+        expect.objectContaining({ id: 1 }),
+        expect.objectContaining({ id: 2 }),
+      ]),
+    );
+    // Refreshes afterward, same as every other bulk-mutation dialog
+    // (ImportRegionDialog etc.) - one extra getMapState call beyond the
+    // initial load.
+    expect(getMapState).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not auto-arrange when the confirmation is declined", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    vi.mocked(getMapState).mockResolvedValue(
+      state({
+        systems: [mapSystem({ id: 1 }), mapSystem({ id: 2, x: 50, y: 50 })],
+      }),
+    );
+    render(<MapView mapId={1} />, { wrapper: MemoryRouter });
+    await flush();
+
+    fireEvent.click(screen.getByTitle("More actions"));
+    fireEvent.click(screen.getByRole("button", { name: "Auto-arrange" }));
+    await flush();
+
+    expect(autoLayoutSystems).not.toHaveBeenCalled();
+  });
+
+  it("shows a dismissible toast if auto-arrange fails, without touching the map", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(getMapState).mockResolvedValue(
+      state({
+        systems: [mapSystem({ id: 1 }), mapSystem({ id: 2, x: 50, y: 50 })],
+      }),
+    );
+    vi.mocked(autoLayoutSystems).mockRejectedValue(new Error("layout failed"));
+    render(<MapView mapId={1} />, { wrapper: MemoryRouter });
+    await flush();
+
+    fireEvent.click(screen.getByTitle("More actions"));
+    fireEvent.click(screen.getByRole("button", { name: "Auto-arrange" }));
+    await flush();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("layout failed");
+    expect(getMapState).toHaveBeenCalledTimes(1);
+  });
+
   it("resyncs the full state on a map.resync socket event", async () => {
     vi.mocked(getMapState).mockResolvedValue(state());
     render(<MapView mapId={1} />, { wrapper: MemoryRouter });
@@ -379,6 +507,30 @@ describe("MapView", () => {
     await flush();
 
     expect(getMapState).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the map visible and shows a dismissible toast when a post-load refresh fails", async () => {
+    vi.mocked(getMapState).mockResolvedValue(state());
+    render(<MapView mapId={1} />, { wrapper: MemoryRouter });
+    await flush();
+    expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
+
+    vi.mocked(getMapState).mockRejectedValueOnce(new Error("timed out"));
+    FakeWebSocket.instances[0].triggerMessage({
+      event: "map.resync",
+      data: {},
+    });
+    await flush();
+
+    // The map itself never unmounts, and the failure surfaces as a toast
+    // rather than replacing the page - unlike a true first-load failure
+    // (see "shows an error message on fetch failure"), which has nothing to
+    // fall back to.
+    expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("timed out");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss error" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("applies a delta socket event without a full refetch", async () => {

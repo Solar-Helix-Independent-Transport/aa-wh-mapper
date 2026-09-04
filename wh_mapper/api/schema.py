@@ -152,6 +152,29 @@ class MapSystemUpdate(Schema):
     pinned: bool | None = None
 
 
+class SystemPositionIn(Schema):
+    """One system's new position, as computed client-side by the
+    auto-arrange layout (see frontend/src/mapLayout.ts) - the frontend owns
+    the actual layout algorithm since it already has each node's rendered
+    size, which the backend has no notion of."""
+
+    id: int
+    x: float
+    y: float
+
+
+class AutoLayoutRequest(Schema):
+    """Payload to bulk-apply an auto-arrange layout to a Map's systems"""
+
+    positions: list[SystemPositionIn]
+
+
+class AutoLayoutResult(Schema):
+    """Summary of a bulk auto-layout apply"""
+
+    updated: int
+
+
 class WormholeTypeOut(Schema):
     """A referenced wh_mapper.WormholeType"""
 

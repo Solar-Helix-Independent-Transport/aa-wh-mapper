@@ -12,7 +12,9 @@ import {
 import { useResizablePanel } from "../hooks/useResizablePanel";
 import { useRouteSocket } from "../hooks/useRouteSocket";
 import { AppHeader } from "./AppHeader";
+import { ConnectionStatusBanner } from "./ConnectionStatusBanner";
 import { LoadingState } from "./LoadingState";
+import { SocketStatusBadge } from "./SocketStatusBadge";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { RouteAlternateBanner } from "./RouteAlternateBanner";
 import { RouteContributors } from "./RouteContributors";
@@ -48,7 +50,7 @@ export function SharedRoute({ routeId }: { routeId: number }) {
 
   useEffect(refresh, [refresh]);
 
-  useRouteSocket(routeId, () => {
+  const socketStatus = useRouteSocket(routeId, () => {
     // The socket only signals "this route changed" - resync via the GET
     // endpoint rather than trusting the payload, same convention as
     // useMapSocket's callers.
@@ -103,7 +105,7 @@ export function SharedRoute({ routeId }: { routeId: number }) {
         <h2 className="route-toolbar-title">
           {route.start_system.name} → {route.end_system.name}
         </h2>
-        <span className="shared-route-live-badge">Live</span>
+        <SocketStatusBadge status={socketStatus} />
         <div className="route-toolbar-actions">
           <button type="button" onClick={handleCopyLink}>
             {copied ? "Copied!" : "Copy link"}
@@ -125,6 +127,7 @@ export function SharedRoute({ routeId }: { routeId: number }) {
 
       <div className="route-view-body">
         <div className="route-diagram-pane">
+          <ConnectionStatusBanner status={socketStatus} />
           {route.found ? (
             <RouteDiagram
               route={displayedRoute}

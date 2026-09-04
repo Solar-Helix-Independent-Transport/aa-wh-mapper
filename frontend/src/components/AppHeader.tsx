@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import type { SocketStatus } from "../hooks/useMapSocket";
 import { AppBrand } from "./AppBrand";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { SocketStatusBadge } from "./SocketStatusBadge";
 import { TrackedCharactersPanel } from "./TrackedCharactersPanel";
 
 interface Props {
@@ -19,6 +21,11 @@ interface Props {
   // MapView's tracked-character count for *this* map - shown on the
   // button as "(N)"; omitted (no badge) on pages with no map open.
   trackedCharacterCount?: number;
+  // The current page's own live socket status (MapView's useMapSocket) -
+  // omitted (no badge) on pages with no live socket of their own. Shown
+  // ahead of `actions` so it reads as ambient page state rather than one of
+  // the page's own controls - see SocketStatusBadge.
+  socketStatus?: SocketStatus;
 }
 
 // "Maps" also counts as active on /maps/:id (an open map is still "in" the
@@ -64,6 +71,7 @@ export function AppHeader({
   actions,
   overflowItems,
   trackedCharacterCount,
+  socketStatus,
 }: Props) {
   const [showTracking, setShowTracking] = useState(false);
   const [overflowAnchor, setOverflowAnchor] = useState<{
@@ -87,6 +95,7 @@ export function AppHeader({
         </div>
 
         <div className="app-header-context">
+          {socketStatus && <SocketStatusBadge status={socketStatus} />}
           {actions}
           <button type="button" onClick={() => setShowTracking(true)}>
             Tracked characters

@@ -9,6 +9,7 @@ import {
 } from "../api/fleet";
 import type { AvailableFleetCharacterOut, FleetSessionOut } from "../api/types";
 import { useFleetSocket, type FleetEvent } from "../hooks/useFleetSocket";
+import { ConnectionStatusBanner } from "./ConnectionStatusBanner";
 import { FleetOverlay } from "./FleetOverlay";
 
 /** Backseat fleet-mass-tracking panel, integrated into the Navigate view
@@ -100,7 +101,10 @@ export function FleetPanel() {
     [selectedSession, refreshLists],
   );
 
-  useFleetSocket(selectedSession?.id ?? null, handleSocketEvent);
+  const socketStatus = useFleetSocket(
+    selectedSession?.id ?? null,
+    handleSocketEvent,
+  );
 
   return (
     <div className="fleet-panel">
@@ -173,6 +177,7 @@ export function FleetPanel() {
               ) : null}
             </div>
           </div>
+          <ConnectionStatusBanner status={socketStatus} variant="inline" />
           <FleetOverlay session={selectedSession} />
         </div>
       )}

@@ -458,6 +458,81 @@ class TestMapApi(TestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(MapSystem.objects.filter(pk=system_id).exists())
 
+    def test_auto_layout_updates_unpinned_systems_and_skips_pinned(self):
+        map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Layout Map"}),
+            content_type="application/json",
+        ).json()["id"]
+        movable_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.jita.id, "x": 0, "y": 0}),
+            content_type="application/json",
+        ).json()["id"]
+        pinned_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps(
+                {"solar_system_id": self.amarr.id, "x": 300, "y": 300, "pinned": True}
+            ),
+            content_type="application/json",
+        ).json()["id"]
+
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/auto-layout/",
+            data=json.dumps(
+                {
+                    "positions": [
+                        {"id": movable_id, "x": 111, "y": 222},
+                        # A stale position for the pinned system - must be
+                        # ignored server-side, not just trusted to have been
+                        # excluded by the client.
+                        {"id": pinned_id, "x": 999, "y": 999},
+                    ]
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["updated"], 1)
+
+        movable = MapSystem.objects.get(pk=movable_id)
+        self.assertEqual(movable.x, 111)
+        self.assertEqual(movable.y, 222)
+
+        pinned = MapSystem.objects.get(pk=pinned_id)
+        self.assertEqual(pinned.x, 300)
+        self.assertEqual(pinned.y, 300)
+
+    def test_auto_layout_ignores_a_system_id_from_another_map(self):
+        map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Layout Map A"}),
+            content_type="application/json",
+        ).json()["id"]
+        other_map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Layout Map B"}),
+            content_type="application/json",
+        ).json()["id"]
+        other_system_id = self.client.post(
+            f"/wh-mapper/api/maps/{other_map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.jita.id}),
+            content_type="application/json",
+        ).json()["id"]
+
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/auto-layout/",
+            data=json.dumps({"positions": [{"id": other_system_id, "x": 1, "y": 1}]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["updated"], 0)
+        other_system = MapSystem.objects.get(pk=other_system_id)
+        self.assertEqual(other_system.x, 0)
+        self.assertEqual(other_system.y, 0)
+
     def test_system_details_returns_placer_name(self):
         map_id = self.client.post(
             "/wh-mapper/api/maps/",
@@ -1642,6 +1717,16 @@ class TestReadOnlyMap(TestCase):
     def test_remove_system_is_rejected(self):
         response = self.client.delete(
             f"/wh-mapper/api/maps/{self.map.id}/systems/{self.map_system_a.id}/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_auto_layout_is_rejected(self):
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{self.map.id}/systems/auto-layout/",
+            data=json.dumps(
+                {"positions": [{"id": self.map_system_a.id, "x": 1, "y": 1}]}
+            ),
+            content_type="application/json",
         )
         self.assertEqual(response.status_code, 403)
 

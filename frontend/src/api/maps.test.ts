@@ -79,6 +79,13 @@ describe("maps api", () => {
     expect(api.delete).toHaveBeenCalledWith("/maps/1/systems/2/");
   });
 
+  it("autoLayoutSystems", async () => {
+    await mapsApi.autoLayoutSystems(1, [{ id: 2, x: 10, y: 20 }]);
+    expect(api.post).toHaveBeenCalledWith("/maps/1/systems/auto-layout/", {
+      positions: [{ id: 2, x: 10, y: 20 }],
+    });
+  });
+
   it("getSystemDetails", async () => {
     await mapsApi.getSystemDetails(1, 2);
     expect(api.get).toHaveBeenCalledWith("/maps/1/systems/2/details/");

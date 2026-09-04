@@ -20,6 +20,7 @@ from esi.exceptions import HTTPClientError, HTTPNotModified, HTTPServerError
 
 # AA WH Mapper App
 from wh_mapper.constants import (
+    CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS,
     EVE_SCOUT_THERA_MAP_NAME,
     EVE_SCOUT_TURNUR_MAP_NAME,
     MAP_PRESENCE_STALE_AFTER_SECONDS,
@@ -469,7 +470,9 @@ class TestPollTrackedCharacterLocations(TestCase):
             poll_tracked_character_locations()
 
         mock_apply.assert_called_once_with(args=[420001, [online_tracked.id]])
-        mock_reschedule.assert_called_once_with(countdown=6)
+        mock_reschedule.assert_called_once_with(
+            countdown=CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS
+        )
 
     def test_no_presence_dispatches_nothing(self):
         TrackedCharacter.objects.create(

@@ -88,6 +88,48 @@ class MapSystemApiEndpoints:
 
             return out
 
+        # Registered before the `{system_id}` routes below: django-ninja's
+        # dynamic segments compile to a plain (non-numeric-only) path
+        # converter, so the URL resolver would otherwise match "auto-layout"
+        # against `{system_id}` first (matching is by path only, method comes
+        # after) and return 405 instead of ever reaching this route - same
+        # reasoning as signatures.py's bulk_upsert_signatures.
+        @api.post(
+            "/maps/{map_id}/systems/auto-layout/",
+            response={200: schema.AutoLayoutResult, 403: str, 404: str},
+            tags=self.tags,
+        )
+        def auto_layout_systems(request, map_id: int, payload: schema.AutoLayoutRequest):
+            map_obj, error = require_writable_map(request, map_id)
+            if error:
+                return error
+
+            positions = {p.id: (p.x, p.y) for p in payload.positions}
+            if not positions:
+                return {"updated": 0}
+
+            # pinned=False at the DB filter (not just trusting the frontend
+            # to have excluded them) - MapSystem.pinned marks a locked "home
+            # base" that auto-arrange should leave exactly where it is, and
+            # a stale client-computed layout (pinned after the layout ran,
+            # before this request landed) shouldn't be able to move it.
+            systems = list(
+                MapSystem.objects.filter(map=map_obj, pk__in=positions.keys(), pinned=False)
+            )
+            for system in systems:
+                system.x, system.y = positions[system.id]
+            MapSystem.objects.bulk_update(systems, ["x", "y"])
+
+            if systems:
+                # One consolidated resync rather than a system.updated per
+                # row (as a single drag-to-move does) - same reasoning as
+                # import_region: this can move dozens of systems in one go,
+                # and that many individual broadcasts risks exceeding the
+                # channel layer's per-channel capacity.
+                broadcast_map_event(map_obj.id, "map.resync", {})
+
+            return {"updated": len(systems)}
+
         @api.patch(
             "/maps/{map_id}/systems/{system_id}/",
             response={200: schema.MapSystemOut, 403: str, 404: str},
