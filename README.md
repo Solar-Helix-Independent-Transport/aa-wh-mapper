@@ -397,3 +397,9 @@ All bug fixes or features must not include extra superfluous formatting changes,
 All Contributions big and small are welcome, we ask that if you submit code you understand how it works.
 
 Make sure you have signed the [License Agreement](https://developers.eveonline.com/resource/license-agreement) by logging in at https://developers.eveonline.com before submitting any pull requests.
+
+<p align="center">
+  <a href="https://www.eveonline.com/partners">
+    <img src="https://raw.githubusercontent.com/Solar-Helix-Independent-Transport/aa-wh-mapper/main/imgs/PartnerBadge2.png" alt="EVE Online Partner">
+  </a>
+</p>
