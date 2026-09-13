@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   Background,
   Controls,
+  Panel,
   ReactFlow,
   type Edge,
   type EdgeMouseHandler,
@@ -279,7 +280,9 @@ export function RouteDiagram({
         >
           <Background />
           <Controls showInteractive={false} />
-          <MapLegend />
+          <Panel position="bottom-center">
+            <MapLegend />
+          </Panel>
         </ReactFlow>
       </SelectedSystemProvider>
       {menu && (

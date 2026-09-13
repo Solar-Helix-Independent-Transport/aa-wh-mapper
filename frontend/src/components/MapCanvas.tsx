@@ -10,6 +10,7 @@ import {
   applyNodeChanges,
   Background,
   Controls,
+  Panel,
   ReactFlow,
   useReactFlow,
   type Edge,
@@ -47,6 +48,7 @@ import {
 import { FloatingEdge } from "./FloatingEdge";
 import { FloatingConnectionLine } from "./FloatingConnectionLine";
 import { MapLegend } from "./MapLegend";
+import { CharacterFinder } from "./CharacterFinder";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { ConnectionDetailsDialog } from "./ConnectionDetailsDialog";
 import { SystemDetailsDialog } from "./SystemDetailsDialog";
@@ -106,7 +108,7 @@ export function MapCanvas({
   onMutationError,
   readOnly = false,
 }: Props) {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, getNode, setCenter, getZoom } = useReactFlow();
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -385,6 +387,27 @@ export function MapCanvas({
       onSelectSystem(Number(node.id));
     },
     [onSelectSystem],
+  );
+
+  // Used by CharacterFinder (the "Characters" toolbar button next to the
+  // legend) to jump the viewport to wherever a picked character currently
+  // is - same centering approach as SignaturePanel's own system finder.
+  const handleFocusCharacterSystem = useCallback(
+    (systemId: number) => {
+      setMenu(null);
+      onSelectSystem(systemId);
+      const node = getNode(String(systemId));
+      if (!node) {
+        return;
+      }
+      const width = node.measured?.width ?? 0;
+      const height = node.measured?.height ?? 0;
+      setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+        zoom: getZoom(),
+        duration: 400,
+      });
+    },
+    [onSelectSystem, getNode, setCenter, getZoom],
   );
 
   const handlePaneClick = useCallback(() => {
@@ -848,7 +871,17 @@ export function MapCanvas({
       >
         <Background />
         <Controls />
-        <MapLegend />
+        <Panel position="bottom-center">
+          <div className="map-bottom-toolbar">
+            <MapLegend />
+            <CharacterFinder
+              characters={state.tracked_characters}
+              systems={state.systems}
+              currentUserId={state.current_user_id}
+              onFocus={handleFocusCharacterSystem}
+            />
+          </div>
+        </Panel>
       </ReactFlow>
       {menu && (
         <ContextMenu

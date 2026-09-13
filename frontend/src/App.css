@@ -492,11 +492,18 @@ without being cut off. */
   gap: 16px;
 }
 
-.map-legend {
+.map-bottom-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.map-legend,
+.character-finder {
   position: relative;
 }
 
 .map-legend button,
+.character-finder button,
 .universe-legend button,
 .button-secondary,
 .route-toolbar-actions button,
@@ -508,6 +515,7 @@ without being cut off. */
 }
 
 .map-legend button:hover,
+.character-finder button:hover,
 .universe-legend button:hover,
 .button-secondary:hover,
 .route-toolbar-actions button:hover,
@@ -519,6 +527,7 @@ without being cut off. */
 }
 
 .map-legend button,
+.character-finder button,
 .universe-legend button {
   padding: 6px 14px;
   border-radius: 6px;
@@ -640,6 +649,58 @@ without being cut off. */
   border-color: var(--danger);
   color: var(--danger);
   font-weight: bold;
+}
+
+.character-finder-popover {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.5);
+  width: 260px;
+}
+
+.character-finder-popover input {
+  width: 100%;
+}
+
+.character-finder-list {
+  max-height: 260px;
+}
+
+.character-finder-offmap {
+  padding: 8px 10px;
+  opacity: 0.6;
+}
+
+.character-finder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.character-finder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-finder-system {
+  flex-shrink: 0;
+  font-size: 11px;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .universe-regions-canvas {

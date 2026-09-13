@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Panel } from "@xyflow/react";
 import { TIME_STATUS_COLOR } from "../constants";
 
 const SPACE_SWATCHES: { label: string; color: string }[] = [
@@ -13,7 +12,12 @@ const SPACE_SWATCHES: { label: string; color: string }[] = [
 
 // Shown in the bottom toolbar, opens a popover explaining every color and
 // line style used on the map so newcomers don't have to guess what a red
-// dashed edge or a green-ringed system means.
+// dashed edge or a green-ringed system means. Callers place this inside
+// their own <Panel> (see MapCanvas/RouteDiagram) rather than it wrapping
+// itself, so it can sit side-by-side with other bottom-toolbar buttons
+// (e.g. MapCanvas's CharacterFinder) instead of overlapping them - xyflow
+// Panels are absolutely positioned, so two Panels at the same corner would
+// stack exactly on top of each other.
 export function MapLegend() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -37,146 +41,144 @@ export function MapLegend() {
   }, [open]);
 
   return (
-    <Panel position="bottom-center">
-      <div className="map-legend" ref={ref}>
-        <button type="button" onClick={() => setOpen((current) => !current)}>
-          Legend
-        </button>
-        {open && (
-          <div className="map-legend-popover">
-            <div className="map-legend-sections">
-              <div className="map-legend-section">
-                <h5>Systems</h5>
-                <ul>
-                  {SPACE_SWATCHES.map((s) => (
-                    <li key={s.label}>
-                      <span
-                        className="legend-swatch"
-                        style={{ background: s.color }}
-                      />
-                      {s.label}
-                    </li>
-                  ))}
-                  <li>
+    <div className="map-legend" ref={ref}>
+      <button type="button" onClick={() => setOpen((current) => !current)}>
+        Legend
+      </button>
+      {open && (
+        <div className="map-legend-popover">
+          <div className="map-legend-sections">
+            <div className="map-legend-section">
+              <h5>Systems</h5>
+              <ul>
+                {SPACE_SWATCHES.map((s) => (
+                  <li key={s.label}>
                     <span
-                      className="legend-swatch legend-swatch-ring"
-                      style={{ borderColor: "var(--success)" }}
+                      className="legend-swatch"
+                      style={{ background: s.color }}
                     />
-                    Character present
+                    {s.label}
                   </li>
-                  <li>
-                    <span
-                      className="legend-swatch legend-swatch-ring"
-                      style={{ borderColor: "var(--accent)" }}
-                    />
-                    Selected
-                  </li>
-                  <li>
-                    <span
-                      className="legend-swatch legend-swatch-ring"
-                      style={{ borderColor: "#e8b923" }}
-                    />
-                    Locked (home base)
-                  </li>
-                  <li>
-                    <span
-                      className="legend-swatch legend-swatch-ring"
-                      style={{
-                        borderColor: "var(--accent-bright)",
-                        borderStyle: "dashed",
-                      }}
-                    />
-                    Multi-selected (bulk delete)
-                  </li>
-                  <li>
-                    <span
-                      className="legend-dot"
-                      style={{ background: "var(--text-dim)" }}
-                    />
-                    Tracked character
-                  </li>
-                  <li>
-                    <span
-                      className="legend-dot"
-                      style={{ background: "var(--success)" }}
-                    />
-                    Your character
-                  </li>
-                </ul>
-              </div>
-
-              <div className="map-legend-section">
-                <h5>Connections</h5>
-                <ul>
-                  <li>
-                    <span
-                      className="legend-line"
-                      style={{ borderColor: TIME_STATUS_COLOR.green }}
-                    />
-                    Wormhole - plenty of time left
-                  </li>
-                  <li>
-                    <span
-                      className="legend-line"
-                      style={{ borderColor: TIME_STATUS_COLOR.orange }}
-                    />
-                    Wormhole - time running out
-                  </li>
-                  <li>
-                    <span
-                      className="legend-line"
-                      style={{ borderColor: TIME_STATUS_COLOR.red }}
-                    />
-                    Wormhole - little time left
-                  </li>
-                  <li>
-                    <span
-                      className="legend-line"
-                      style={{ borderColor: TIME_STATUS_COLOR.unknown }}
-                    />
-                    Wormhole - unidentified type
-                  </li>
-                  <li>
-                    <span
-                      className="legend-line legend-line-dashed"
-                      style={{ borderColor: "var(--text-dim)" }}
-                    />
-                    Mass nearly depleted (dashed, any color above)
-                  </li>
-                  <li>
-                    <span className="legend-badge legend-badge-critical">
-                      ≤1h
-                    </span>
-                    About to collapse
-                  </li>
-                  <li>
-                    <span className="legend-badge">L</span>
-                    Ship size supported (S/M/L/XL)
-                  </li>
-                  <li>
-                    <span
-                      className="legend-line"
-                      style={{ borderColor: "#ffffff" }}
-                    />
-                    Stargate
-                  </li>
-                  <li>
-                    <span
-                      className="legend-line legend-line-dashed"
-                      style={{ borderColor: "var(--text-dim)" }}
-                    />
-                    Ansiblex jump gate
-                  </li>
-                </ul>
-              </div>
+                ))}
+                <li>
+                  <span
+                    className="legend-swatch legend-swatch-ring"
+                    style={{ borderColor: "var(--success)" }}
+                  />
+                  Character present
+                </li>
+                <li>
+                  <span
+                    className="legend-swatch legend-swatch-ring"
+                    style={{ borderColor: "var(--accent)" }}
+                  />
+                  Selected
+                </li>
+                <li>
+                  <span
+                    className="legend-swatch legend-swatch-ring"
+                    style={{ borderColor: "#e8b923" }}
+                  />
+                  Locked (home base)
+                </li>
+                <li>
+                  <span
+                    className="legend-swatch legend-swatch-ring"
+                    style={{
+                      borderColor: "var(--accent-bright)",
+                      borderStyle: "dashed",
+                    }}
+                  />
+                  Multi-selected (bulk delete)
+                </li>
+                <li>
+                  <span
+                    className="legend-dot"
+                    style={{ background: "var(--text-dim)" }}
+                  />
+                  Tracked character
+                </li>
+                <li>
+                  <span
+                    className="legend-dot"
+                    style={{ background: "var(--success)" }}
+                  />
+                  Your character
+                </li>
+              </ul>
             </div>
-            <p className="map-legend-hint">
-              Shift+drag to box-select multiple systems/connections, then press
-              Delete to remove them all.
-            </p>
+
+            <div className="map-legend-section">
+              <h5>Connections</h5>
+              <ul>
+                <li>
+                  <span
+                    className="legend-line"
+                    style={{ borderColor: TIME_STATUS_COLOR.green }}
+                  />
+                  Wormhole - plenty of time left
+                </li>
+                <li>
+                  <span
+                    className="legend-line"
+                    style={{ borderColor: TIME_STATUS_COLOR.orange }}
+                  />
+                  Wormhole - time running out
+                </li>
+                <li>
+                  <span
+                    className="legend-line"
+                    style={{ borderColor: TIME_STATUS_COLOR.red }}
+                  />
+                  Wormhole - little time left
+                </li>
+                <li>
+                  <span
+                    className="legend-line"
+                    style={{ borderColor: TIME_STATUS_COLOR.unknown }}
+                  />
+                  Wormhole - unidentified type
+                </li>
+                <li>
+                  <span
+                    className="legend-line legend-line-dashed"
+                    style={{ borderColor: "var(--text-dim)" }}
+                  />
+                  Mass nearly depleted (dashed, any color above)
+                </li>
+                <li>
+                  <span className="legend-badge legend-badge-critical">
+                    ≤1h
+                  </span>
+                  About to collapse
+                </li>
+                <li>
+                  <span className="legend-badge">L</span>
+                  Ship size supported (S/M/L/XL)
+                </li>
+                <li>
+                  <span
+                    className="legend-line"
+                    style={{ borderColor: "#ffffff" }}
+                  />
+                  Stargate
+                </li>
+                <li>
+                  <span
+                    className="legend-line legend-line-dashed"
+                    style={{ borderColor: "var(--text-dim)" }}
+                  />
+                  Ansiblex jump gate
+                </li>
+              </ul>
+            </div>
           </div>
-        )}
-      </div>
-    </Panel>
+          <p className="map-legend-hint">
+            Shift+drag to box-select multiple systems/connections, then press
+            Delete to remove them all.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
