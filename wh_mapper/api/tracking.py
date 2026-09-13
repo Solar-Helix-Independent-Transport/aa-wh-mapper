@@ -134,7 +134,10 @@ class TrackingApiEndpoints:
             ).values_list("map_id", flat=True).distinct()
             for map_id in open_map_ids:
                 broadcast_map_event(
-                    map_id, "character.removed", {"character_id": character_id}
+                    map_id,
+                    "character.removed",
+                    {"character_id": character_id},
+                    user=request.user,
                 )
 
             return 204, None

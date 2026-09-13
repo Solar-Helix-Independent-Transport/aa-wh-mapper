@@ -747,7 +747,10 @@ class TestPollCharacterLocation(TestCase):
             poll_character_location(430001, [self.tracked.id])
 
         mock_broadcast.assert_called_once_with(
-            self.map.id, "character.removed", {"character_id": 430001}
+            self.map.id,
+            "character.removed",
+            {"character_id": 430001},
+            user=self.owner,
         )
 
     def test_coming_back_online_broadcasts_character_moved_to_open_maps(self):

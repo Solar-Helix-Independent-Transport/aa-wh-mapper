@@ -1086,7 +1086,10 @@ def auto_link_stargates(map_obj, new_system, user, broadcast: bool = True) -> in
             created_count += 1
             if broadcast:
                 broadcast_map_event(
-                    map_obj.id, "connection.added", connection_to_schema(connection)
+                    map_obj.id,
+                    "connection.added",
+                    connection_to_schema(connection),
+                    user=user,
                 )
 
     return created_count
@@ -1144,7 +1147,10 @@ def auto_link_stargates_bulk(map_obj, new_systems, user, broadcast: bool = True)
             created_count += 1
             if broadcast:
                 broadcast_map_event(
-                    map_obj.id, "connection.added", connection_to_schema(connection)
+                    map_obj.id,
+                    "connection.added",
+                    connection_to_schema(connection),
+                    user=user,
                 )
 
     return created_count
@@ -1286,7 +1292,7 @@ def import_map_content(target_map, source_map, user) -> dict:
             connections_added += 1
 
     if systems_added or connections_added or signatures_added:
-        broadcast_map_event(target_map.id, "map.resync", {})
+        broadcast_map_event(target_map.id, "map.resync", {}, user=user)
 
     return {
         "systems_added": systems_added,

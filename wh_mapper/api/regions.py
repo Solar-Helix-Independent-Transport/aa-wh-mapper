@@ -140,7 +140,7 @@ class RegionApiEndpoints:
             )
 
             if new_systems or connections_added:
-                broadcast_map_event(map_obj.id, "map.resync", {})
+                broadcast_map_event(map_obj.id, "map.resync", {}, user=request.user)
 
             return {
                 "systems_added": len(new_systems),

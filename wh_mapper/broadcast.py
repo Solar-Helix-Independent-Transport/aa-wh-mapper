@@ -12,7 +12,8 @@ from django.core.serializers.json import DjangoJSONEncoder
 
 # AA WH Mapper App
 from wh_mapper.consumers import _fleet_group_name, _group_name, _route_group_name
-from wh_mapper.models import MapPresence
+from wh_mapper.models import Map, MapPresence
+from wh_mapper.signals import map_changed
 
 
 def broadcast_fleet_event(session_id: int, event: str, data: dict) -> None:
@@ -45,8 +46,18 @@ def broadcast_route_event(route_id: int, event: str, data: dict) -> None:
     )
 
 
-def broadcast_map_event(map_id: int, event: str, data: dict) -> None:
-    """Fan out a map mutation to every client connected to that map."""
+def broadcast_map_event(map_id: int, event: str, data: dict, *, user=None) -> None:
+    """Fan out a map mutation to every client connected to that map, and
+    fire wh_mapper.signals.map_changed for anything else (this app or a
+    third-party one) that wants to react to the mutation without depending
+    on the websocket layer.
+
+    `user` is whoever triggered the mutation - None for a system-driven one
+    (life/mass aging, the eve-scout sync) rather than a real actor. Only
+    reaches map_changed, never the websocket payload itself.
+    """
+
+    map_changed.send(sender=Map, map_id=map_id, event=event, data=data, user=user)
 
     channel_layer = get_channel_layer()
     if channel_layer is None:

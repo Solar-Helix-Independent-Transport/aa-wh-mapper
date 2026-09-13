@@ -47,7 +47,7 @@ dependencies = [
     "redis",
     # "daphne",
 ]
-urls.Changelog = "https://github.com/Solar-Helix-Independent-Transport/aa-wh-mapper/blob/master/CHANGELOG.md"
+urls.Changelog = "https://github.com/Solar-Helix-Independent-Transport/aa-wh-mapper/releases"
 urls.Tracker = "https://github.com/Solar-Helix-Independent-Transport/aa-wh-mapper/issues"
 
 [tool.hatch]

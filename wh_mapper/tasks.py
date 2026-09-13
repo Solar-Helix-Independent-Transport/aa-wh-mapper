@@ -592,10 +592,18 @@ def _broadcast_online_state_change(tracked: TrackedCharacter, online: bool) -> N
 
     for map_id in open_map_ids:
         if online:
-            broadcast_map_event(map_id, "character.moved", tracked_character_to_schema(tracked))
+            broadcast_map_event(
+                map_id,
+                "character.moved",
+                tracked_character_to_schema(tracked),
+                user=tracked.added_by,
+            )
         else:
             broadcast_map_event(
-                map_id, "character.removed", {"character_id": tracked.character.character_id}
+                map_id,
+                "character.removed",
+                {"character_id": tracked.character.character_id},
+                user=tracked.added_by,
             )
 
 
@@ -678,7 +686,10 @@ def _apply_location_update(tracked: TrackedCharacter, new_system: SolarSystem) -
 
     for map_id in open_map_ids:
         broadcast_map_event(
-            map_id, "character.moved", tracked_character_to_schema(tracked)
+            map_id,
+            "character.moved",
+            tracked_character_to_schema(tracked),
+            user=tracked.added_by,
         )
 
 
@@ -709,7 +720,10 @@ def _grow_map_for_character(
     if system_created:
         owner = single_system_owner(new_map_system.solar_system)
         broadcast_map_event(
-            map_id, "system.added", system_to_schema(new_map_system, owner=owner)
+            map_id,
+            "system.added",
+            system_to_schema(new_map_system, owner=owner),
+            user=tracked.added_by,
         )
 
     if old_map_system is not None and old_map_system.id != new_map_system.id:
@@ -727,7 +741,10 @@ def _grow_map_for_character(
         )
         if connection_created:
             broadcast_map_event(
-                map_id, "connection.added", connection_to_schema(connection)
+                map_id,
+                "connection.added",
+                connection_to_schema(connection),
+                user=tracked.added_by,
             )
             # Stargates are always the same known gate - nothing to identify.
             # A fresh wormhole connection, though, was just created blind (no
@@ -929,7 +946,12 @@ def poll_fleet_session(session_id: int):
     ).delete()
 
     for map_id, connection in changed_connections:
-        broadcast_map_event(map_id, "connection.updated", connection_to_schema(connection))
+        broadcast_map_event(
+            map_id,
+            "connection.updated",
+            connection_to_schema(connection),
+            user=session.started_by,
+        )
 
     hop_distances = (
         bfs_hop_distances(build_graph(session.started_by), fc_new_system_id)

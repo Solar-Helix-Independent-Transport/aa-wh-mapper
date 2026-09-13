@@ -83,7 +83,7 @@ class MapSystemApiEndpoints:
             )
 
             if created:
-                broadcast_map_event(map_obj.id, "system.added", out)
+                broadcast_map_event(map_obj.id, "system.added", out, user=request.user)
                 auto_link_stargates(map_obj, system, request.user)
 
             return out
@@ -126,7 +126,7 @@ class MapSystemApiEndpoints:
                 # import_region: this can move dozens of systems in one go,
                 # and that many individual broadcasts risks exceeding the
                 # channel layer's per-channel capacity.
-                broadcast_map_event(map_obj.id, "map.resync", {})
+                broadcast_map_event(map_obj.id, "map.resync", {}, user=request.user)
 
             return {"updated": len(systems)}
 
@@ -153,7 +153,7 @@ class MapSystemApiEndpoints:
                 owner=single_system_owner(system.solar_system),
                 statics=single_system_statics(system.solar_system_id),
             )
-            broadcast_map_event(map_obj.id, "system.updated", out)
+            broadcast_map_event(map_obj.id, "system.updated", out, user=request.user)
 
             return out
 
@@ -223,6 +223,7 @@ class MapSystemApiEndpoints:
                     "removed_signature_ids": removed_signature_ids,
                     "removed_connection_ids": removed_connection_ids,
                 },
+                user=request.user,
             )
 
             return 204, None

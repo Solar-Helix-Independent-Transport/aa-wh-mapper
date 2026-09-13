@@ -106,7 +106,9 @@ class ConnectionFlagApiEndpoints:
             if flag.suggests_collapsed:
                 flag.delete()
                 connection.delete()
-                broadcast_map_event(map_obj.id, "connection.removed", {"id": connection_id})
+                broadcast_map_event(
+                    map_obj.id, "connection.removed", {"id": connection_id}, user=request.user
+                )
                 _recompute_routes_for_map(map_obj.id)
                 return {"deleted": True, "connection": None}
 
@@ -118,7 +120,7 @@ class ConnectionFlagApiEndpoints:
             flag.delete()
 
             out = connection_to_schema(connection)
-            broadcast_map_event(map_obj.id, "connection.updated", out)
+            broadcast_map_event(map_obj.id, "connection.updated", out, user=request.user)
             _recompute_routes_for_map(map_obj.id)
 
             return {"deleted": False, "connection": out}

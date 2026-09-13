@@ -115,7 +115,7 @@ class WormholeConnectionApiEndpoints:
 
             out = connection_to_schema(connection)
             if connection_created:
-                broadcast_map_event(map_obj.id, "connection.added", out)
+                broadcast_map_event(map_obj.id, "connection.added", out, user=request.user)
                 _recompute_routes_for_map(map_obj.id)
 
             return out
@@ -153,7 +153,7 @@ class WormholeConnectionApiEndpoints:
                 record_contribution(connection, request.user, MapContribution.Verb.UPDATED)
 
             out = connection_to_schema(connection)
-            broadcast_map_event(map_obj.id, "connection.updated", out)
+            broadcast_map_event(map_obj.id, "connection.updated", out, user=request.user)
             _recompute_routes_for_map(map_obj.id)
 
             return out
@@ -191,7 +191,7 @@ class WormholeConnectionApiEndpoints:
             record_contribution(connection, request.user, MapContribution.Verb.SIGNATURE_LINKED)
 
             out = connection_to_schema(connection)
-            broadcast_map_event(map_obj.id, "connection.updated", out)
+            broadcast_map_event(map_obj.id, "connection.updated", out, user=request.user)
             _recompute_routes_for_map(map_obj.id)
 
             return out
@@ -245,7 +245,9 @@ class WormholeConnectionApiEndpoints:
             )
             connection.delete()
 
-            broadcast_map_event(map_obj.id, "connection.removed", {"id": connection_id})
+            broadcast_map_event(
+                map_obj.id, "connection.removed", {"id": connection_id}, user=request.user
+            )
             _recompute_routes_for_map(map_obj.id)
 
             return 204, None

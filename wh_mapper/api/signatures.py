@@ -78,7 +78,7 @@ class SignatureApiEndpoints:
                 return 400, f"Signature {signature_id} already exists on this system"
 
             out = signature_to_schema(signature)
-            broadcast_map_event(map_obj.id, "signature.added", out)
+            broadcast_map_event(map_obj.id, "signature.added", out, user=request.user)
 
             return out
 
@@ -248,6 +248,7 @@ class SignatureApiEndpoints:
                     "removed_connection_ids": removed_connection_ids,
                     "removed_system_ids": removed_system_ids,
                 },
+                user=request.user,
             )
             _recompute_routes_for_map(map_obj.id)
 
@@ -292,7 +293,7 @@ class SignatureApiEndpoints:
             signature.save()
 
             out = signature_to_schema(signature)
-            broadcast_map_event(map_obj.id, "signature.updated", out)
+            broadcast_map_event(map_obj.id, "signature.updated", out, user=request.user)
             _recompute_routes_for_map(map_obj.id)
 
             return out
@@ -315,7 +316,9 @@ class SignatureApiEndpoints:
             )
             signature.delete()
 
-            broadcast_map_event(map_obj.id, "signature.removed", {"id": signature_id})
+            broadcast_map_event(
+                map_obj.id, "signature.removed", {"id": signature_id}, user=request.user
+            )
             _recompute_routes_for_map(map_obj.id)
 
             return 204, None
