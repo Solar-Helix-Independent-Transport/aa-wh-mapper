@@ -86,8 +86,7 @@ build_test:
 .PHONY: tox_tests
 tox_tests:
 	@echo "Running tests with tox"
-	@export USE_MYSQL=False; \
-	tox -v -e allianceauth-latest; \
+	@tox -v; \
 	rm -rf .tox/
 
 # Pre-commit checks
