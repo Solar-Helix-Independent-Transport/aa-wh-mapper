@@ -67,11 +67,8 @@ compile_translations:
 coverage:
 	@echo "Running tests and creating a coverage report"
 	@rm -rf htmlcov
-	@coverage run ../../myauth/manage.py \
-		test \
-		$(package) \
-		--keepdb \
-		--failfast; \
+	@DJANGO_SETTINGS_MODULE=testauth.settings.local \
+		coverage run runtests.py $(package) -v 2 --keepdb --failfast; \
 	coverage html; \
 	coverage report -m
 

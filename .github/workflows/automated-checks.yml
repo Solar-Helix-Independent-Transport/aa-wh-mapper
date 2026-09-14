@@ -1,8 +1,6 @@
 name: Tests
 
 env:
-  COVERAGE_DATABASE_VERSION: mariadb:10.11
-  COVERAGE_PYTHON_VERSION: 3.12
   NODE_VERSION: 24 # [LTS] End of Life: 30 Apr 2028 (https://endoflife.date/nodejs)
   REDIS_VERSION: latest
 
@@ -65,7 +63,7 @@ jobs:
   # Run Test Coverage
   test-coverage:
     needs: [ pre-commit ]
-    name: AA Latest (Python ${{ matrix.python-version }} with ${{ matrix.database }})
+    name: AA Latest (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -105,41 +103,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade tox tox-gh-actions
 
-      # Run Tox with the specified environment
+      # Run Tox (the full env_list matrix from tox.ini, for this job's Python version)
       - name: Run Tox
-#        env:
-#          TOX_ENV: allianceauth-latest
-#          DB_HOST: 127.0.0.1
-#          DB_USER: root
-#          DB_PASSWORD: temp_password_aa_tox_tests
-#        run: tox -v -e ${{ env.TOX_ENV }} 
         run: tox -v
-
-      # Upload coverage to Codecov
-#      - name: Upload Coverage
-#        if: ${{
-#              (
-#                github.event_name == 'pull_request'
-#                || (
-#                  github.event_name == 'push'
-#                  && github.ref == 'refs/heads/master'
-#                )
-#              )
-#              && (
-#                matrix.python-version == env.COVERAGE_PYTHON_VERSION
-#                && matrix.database == env.COVERAGE_DATABASE_VERSION
-#              )
-#            }}
-#        uses: codecov/codecov-action@v5
-#        with:
-##          token: ${{ secrets.CODECOV_TOKEN }}
-#          files: coverage.xml # optional
-##          flags: unittests # optional
-##          name: codecov-umbrella # optional
-##          fail_ci_if_error: true # optional (default = false)
-#          verbose: true # optional (default = false)
-#        env:
-#          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # Run PyPi Build Test
   pypi-build-test:
