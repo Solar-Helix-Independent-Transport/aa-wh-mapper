@@ -76,6 +76,12 @@ describe("App routing", () => {
     expect(screen.getByTestId("status-page")).toBeInTheDocument();
   });
 
+  it("redirects an unmatched path to the map list", () => {
+    navigateTo("/this-does-not-exist");
+    render(<App />);
+    expect(screen.getByTestId("map-list")).toBeInTheDocument();
+  });
+
   it("uses the full-width main layout for map and route views, not the map list", () => {
     navigateTo("/");
     const { container, unmount } = render(<App />);

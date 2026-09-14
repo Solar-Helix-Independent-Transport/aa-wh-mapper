@@ -1,5 +1,6 @@
 import {
   BrowserRouter,
+  Navigate,
   Route,
   Routes,
   useLocation,
@@ -76,6 +77,7 @@ function AppShell() {
           <Route path="/route" element={<RouteFinder />} />
           <Route path="/route/shared/:routeId" element={<SharedRouteRoute />} />
           <Route path="/status" element={<StatusPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>
