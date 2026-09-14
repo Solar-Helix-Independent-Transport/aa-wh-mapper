@@ -1825,22 +1825,15 @@ def available_fleet_character_to_schema(
     }
 
 
-def fleet_member_to_schema(member, hop_distance: int | None) -> dict:
+def fleet_member_to_schema(member, hop_distance: int | None, ship_type_name: str) -> dict:
     """Serialize a FleetMemberState to FleetMemberOut shape. `hop_distance`
     is None for ticket 09's "unknown" (unreachable within the viewer's
     visible graph) state - `solar_system` itself is always resolved (ESI
     always reports a real solar_system_id for every member), which is why
     fleet_session_to_schema only includes members whose location has
-    actually resolved locally."""
-
-    ship_type_name = "Unknown"
-    if member.ship_type_id is not None:
-        ship_type_name = (
-            ItemType.objects.filter(pk=member.ship_type_id)
-            .values_list("name", flat=True)
-            .first()
-            or "Unknown"
-        )
+    actually resolved locally. `ship_type_name` is resolved by the caller
+    (fleet_session_to_schema) via one batched ItemType query for the whole
+    fleet, rather than here per member - see that function."""
 
     return {
         "character_id": member.character_id,
@@ -1856,8 +1849,19 @@ def fleet_session_to_schema(session, hop_distances: dict[int, int], viewer) -> d
     hop distances - see wh_mapper.pathfinding.bfs_hop_distances) to
     FleetSessionOut shape."""
 
-    members = session.members.filter(last_solar_system__isnull=False).select_related(
-        "last_solar_system"
+    members = list(
+        session.members.filter(last_solar_system__isnull=False).select_related(
+            "last_solar_system"
+        )
+    )
+
+    # One query for every member's ship name (same batching rationale as
+    # bulk_system_owners/bulk_system_statics) rather than one ItemType
+    # lookup per member - a fleet can be dozens of members, and this is
+    # rebuilt on every poll/broadcast.
+    ship_type_ids = {member.ship_type_id for member in members if member.ship_type_id is not None}
+    ship_type_names = dict(
+        ItemType.objects.filter(pk__in=ship_type_ids).values_list("id", "name")
     )
 
     return {
@@ -1870,7 +1874,11 @@ def fleet_session_to_schema(session, hop_distances: dict[int, int], viewer) -> d
         "is_watcher": session.watchers.filter(user=viewer).exists(),
         "is_starter": session.started_by_id == viewer.id,
         "members": [
-            fleet_member_to_schema(member, hop_distances.get(member.last_solar_system_id))
+            fleet_member_to_schema(
+                member,
+                hop_distances.get(member.last_solar_system_id),
+                ship_type_names.get(member.ship_type_id, "Unknown"),
+            )
             for member in members
         ],
     }
