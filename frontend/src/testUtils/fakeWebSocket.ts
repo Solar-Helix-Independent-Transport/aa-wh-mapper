@@ -14,7 +14,7 @@ export class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
 
   // Mirrors the real WebSocket readyState values - closeSocketGracefully
-  // (see useMapSocket.ts) branches on this to decide whether to close
+  // (see useSocket.ts) branches on this to decide whether to close
   // immediately or wait for the handshake to resolve first.
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
