@@ -20,6 +20,7 @@ from esi.exceptions import HTTPClientError, HTTPNotModified, HTTPServerError
 
 # AA WH Mapper App
 from wh_mapper.constants import (
+    CHARACTER_LOCATION_PATH_GAP_SECONDS,
     CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS,
     EVE_SCOUT_THERA_MAP_NAME,
     EVE_SCOUT_TURNUR_MAP_NAME,
@@ -437,6 +438,39 @@ class TestApplyLocationUpdate(TestCase):
         self.assertEqual(connection.connection_type, WormholeConnection.ConnectionType.STARGATE)
         mock_send.assert_not_called()
 
+    def test_jump_after_a_tracking_gap_seeds_new_system_without_a_connection(self):
+        """A character who reconnects (map reopened, or came back online)
+        after a gap longer than CHARACTER_LOCATION_PATH_GAP_SECONDS may have
+        passed through any number of systems while untracked - the old and
+        new systems shouldn't be assumed connected.
+        """
+
+        _apply_location_update(self.tracked, self.sys_a)
+        self.tracked.refresh_from_db()
+        self.tracked.last_seen_at = timezone.now() - timedelta(
+            seconds=CHARACTER_LOCATION_PATH_GAP_SECONDS + 1
+        )
+        self.tracked.save(update_fields=["last_seen_at"])
+
+        _apply_location_update(self.tracked, self.sys_b)
+
+        self.tracked.refresh_from_db()
+        self.assertEqual(self.tracked.last_solar_system_id, self.sys_b.id)
+        self.assertEqual(MapSystem.objects.filter(map=self.map).count(), 2)
+        self.assertEqual(WormholeConnection.objects.filter(map=self.map).count(), 0)
+
+    def test_jump_within_the_tracking_gap_still_connects_the_systems(self):
+        _apply_location_update(self.tracked, self.sys_a)
+        self.tracked.refresh_from_db()
+        self.tracked.last_seen_at = timezone.now() - timedelta(
+            seconds=CHARACTER_LOCATION_PATH_GAP_SECONDS - 1
+        )
+        self.tracked.save(update_fields=["last_seen_at"])
+
+        _apply_location_update(self.tracked, self.sys_b)
+
+        self.assertEqual(WormholeConnection.objects.filter(map=self.map).count(), 1)
+
 
 class TestPollTrackedCharacterLocations(TestCase):
     """TestPollTrackedCharacterLocations"""
@@ -638,6 +672,7 @@ class TestPollCharacterLocation(TestCase):
         cls.owner = make_user_with_character("poll_char_owner", 430001)
         cls.map = Map.objects.create(name="Poll Char Map", owner=cls.owner)
         cls.sys_a = make_solar_system("PollCharSysA")
+        cls.sys_b = make_solar_system("PollCharSysB")
 
     def setUp(self):
         self.tracked = TrackedCharacter.objects.create(
@@ -686,6 +721,77 @@ class TestPollCharacterLocation(TestCase):
         self.tracked.refresh_from_db()
         self.assertEqual(self.tracked.last_solar_system_id, self.sys_a.id)
         self.assertIsNotNone(self.tracked.last_seen_at)
+
+    def test_a_prior_304_keeps_the_path_known_for_the_next_real_jump(self):
+        """A 304 still bumps last_seen_at (see
+        test_location_not_modified_only_bumps_last_seen_at), so a run of
+        unchanged polls right up until a real jump shouldn't make that jump
+        look like it crossed a tracking gap.
+        """
+
+        # Seed a real sighting at sys_a first (so it actually exists on the
+        # map) before the run of 304s below.
+        with (
+            patch("wh_mapper.tasks.Token.get_token", return_value=object()),
+            patch("wh_mapper.tasks._character_is_online", return_value=True),
+            patch("wh_mapper.tasks.esi") as mock_esi,
+        ):
+            mock_esi.client.Location.GetCharactersCharacterIdLocation.return_value.result.return_value = (
+                SimpleNamespace(solar_system_id=self.sys_a.id)
+            )
+            poll_character_location(430001, [self.tracked.id])
+
+        with (
+            patch("wh_mapper.tasks.Token.get_token", return_value=object()),
+            patch("wh_mapper.tasks._character_is_online", return_value=True),
+            patch("wh_mapper.tasks.esi") as mock_esi,
+        ):
+            mock_esi.client.Location.GetCharactersCharacterIdLocation.return_value.result.side_effect = (
+                HTTPNotModified(status_code=304, headers={})
+            )
+            poll_character_location(430001, [self.tracked.id])
+
+        with (
+            patch("wh_mapper.tasks.Token.get_token", return_value=object()),
+            patch("wh_mapper.tasks._character_is_online", return_value=True),
+            patch("wh_mapper.tasks.esi") as mock_esi,
+        ):
+            mock_esi.client.Location.GetCharactersCharacterIdLocation.return_value.result.return_value = (
+                SimpleNamespace(solar_system_id=self.sys_b.id)
+            )
+            poll_character_location(430001, [self.tracked.id])
+
+        self.tracked.refresh_from_db()
+        self.assertEqual(self.tracked.last_solar_system_id, self.sys_b.id)
+        self.assertEqual(WormholeConnection.objects.filter(map=self.map).count(), 1)
+
+    def test_jump_after_a_stale_last_seen_at_seeds_without_a_connection(self):
+        """Mirrors the gap scenario end-to-end through poll_character_location
+        (rather than calling _apply_location_update directly) - covers a
+        character reconnecting (map reopened, or came back online) after
+        being untracked for longer than CHARACTER_LOCATION_PATH_GAP_SECONDS.
+        """
+
+        self.tracked.last_solar_system = self.sys_a
+        self.tracked.last_seen_at = timezone.now() - timedelta(
+            seconds=CHARACTER_LOCATION_PATH_GAP_SECONDS + 1
+        )
+        self.tracked.save(update_fields=["last_solar_system", "last_seen_at"])
+
+        with (
+            patch("wh_mapper.tasks.Token.get_token", return_value=object()),
+            patch("wh_mapper.tasks._character_is_online", return_value=True),
+            patch("wh_mapper.tasks.esi") as mock_esi,
+        ):
+            mock_esi.client.Location.GetCharactersCharacterIdLocation.return_value.result.return_value = (
+                SimpleNamespace(solar_system_id=self.sys_b.id)
+            )
+            poll_character_location(430001, [self.tracked.id])
+
+        self.tracked.refresh_from_db()
+        self.assertEqual(self.tracked.last_solar_system_id, self.sys_b.id)
+        self.assertEqual(MapSystem.objects.filter(map=self.map).count(), 1)
+        self.assertEqual(WormholeConnection.objects.filter(map=self.map).count(), 0)
 
     def test_location_http_error_does_not_raise(self):
         with (

@@ -21,6 +21,16 @@ LOCATION_SCOPES = [
 # fleet-session polling, a separate feature with its own ESI load profile.
 CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS = 3
 
+# Longest gap (seconds) since a TrackedCharacter's last confirmed poll for
+# which _apply_location_update still trusts its old system as the character's
+# actual jump-off point - see wh_mapper.tasks. Comfortably above
+# CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS to tolerate normal scheduling
+# jitter. Past this, tracking has lapsed for long enough (map closed, or the
+# character logged off) that they could have passed through any number of
+# systems in between, so the old->new hop is no longer assumed to be a real
+# connection.
+CHARACTER_LOCATION_PATH_GAP_SECONDS = 60
+
 # How often (seconds) poll_fleet_tracking_sessions reschedules itself while
 # any session is active - see wh_mapper.tasks. ESI's fleet-members endpoint
 # has its own 5s cache (see the fleet-mass-tracking wayfinder map's ticket

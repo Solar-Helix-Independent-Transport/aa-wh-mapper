@@ -60,6 +60,7 @@ from wh_mapper.broadcast import (
     send_map_event_to_user,
 )
 from wh_mapper.constants import (
+    CHARACTER_LOCATION_PATH_GAP_SECONDS,
     CHARACTER_LOCATION_POLL_RESCHEDULE_SECONDS,
     EVE_SCOUT_API_URL,
     EVE_SCOUT_HUB_RADIUS,
@@ -670,7 +671,17 @@ def _apply_location_update(tracked: TrackedCharacter, new_system: SolarSystem) -
         tracked.save(update_fields=["last_seen_at"])
         return
 
-    old_system = tracked.last_solar_system
+    # If tracking lapsed for longer than a normal poll gap since we last
+    # confirmed this character's system (the map was closed, or the
+    # character went offline), they could have passed through any number of
+    # systems in the meantime - the old and new systems aren't necessarily
+    # connected, so treat this like a first sighting (no inferred
+    # connection) rather than a direct jump between them.
+    path_known = (
+        tracked.last_seen_at is not None
+        and (now - tracked.last_seen_at).total_seconds() <= CHARACTER_LOCATION_PATH_GAP_SECONDS
+    )
+    old_system = tracked.last_solar_system if path_known else None
 
     open_map_ids = list(
         MapPresence.objects.filter(user_id=tracked.added_by_id)
