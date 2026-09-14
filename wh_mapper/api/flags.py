@@ -11,6 +11,7 @@ from wh_mapper.api.helpers import (
     connection_flag_to_schema,
     connection_to_schema,
     require_basic_access,
+    require_visible_map,
     require_writable_map,
 )
 from wh_mapper.broadcast import broadcast_map_event
@@ -69,16 +70,26 @@ class ConnectionFlagApiEndpoints:
             return connection_flag_to_schema(flag)
 
         @api.get(
-            "/connections/{connection_id}/flags/",
+            "/maps/{map_id}/connections/{connection_id}/flags/",
             response={200: list[schema.ConnectionFlagOut], 403: str, 404: str},
             tags=self.tags,
         )
-        def list_connection_flags(request, connection_id: int):
-            error = require_basic_access(request)
+        def list_connection_flags(request, map_id: int, connection_id: int):
+            # Unlike create_connection_flag above, listing is only ever
+            # called by a map's own toolbar (ConnectionFlagsPanel), for
+            # someone who can already see every connection on that map - so
+            # this is scoped like any other read endpoint, not left open the
+            # way create_connection_flag deliberately is. Otherwise a
+            # sequential connection_id would let anyone with basic_access
+            # enumerate flag state (and therefore connection existence) on
+            # maps they can't see.
+            map_obj, error = require_visible_map(request, map_id)
             if error:
                 return error
 
-            connection = get_object_or_404(WormholeConnection, pk=connection_id)
+            connection = get_object_or_404(
+                WormholeConnection, pk=connection_id, map=map_obj
+            )
 
             return [connection_flag_to_schema(f) for f in connection.flags.all()]
 

@@ -67,10 +67,27 @@ class TestConnectionFlagApi(TestCase):
         )
         self.client.login(username="flag_alice", password="test-password")
 
-        response = self.client.get(f"/wh-mapper/api/connections/{self.connection.id}/flags/")
+        response = self.client.get(
+            f"/wh-mapper/api/maps/{self.wh_map.id}/connections/{self.connection.id}/flags/"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
+
+    def test_list_flags_requires_map_access(self):
+        """Bob has no access to Alice's map - even though he created the
+        flag himself (via the deliberately-open create endpoint), he can't
+        list flags on a connection whose map he can't see."""
+        ConnectionFlag.objects.create(
+            connection=self.connection, flagged_by=self.bob, suggested_mass_status="critical"
+        )
+        self.client.login(username="flag_bob", password="test-password")
+
+        response = self.client.get(
+            f"/wh-mapper/api/maps/{self.wh_map.id}/connections/{self.connection.id}/flags/"
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     def test_accept_mass_status_suggestion_applies_it_and_deletes_flag(self):
         flag = ConnectionFlag.objects.create(

@@ -42,8 +42,8 @@ describe("route api", () => {
   });
 
   it("listConnectionFlags", async () => {
-    await routeApi.listConnectionFlags(9);
-    expect(api.get).toHaveBeenCalledWith("/connections/9/flags/");
+    await routeApi.listConnectionFlags(1, 9);
+    expect(api.get).toHaveBeenCalledWith("/maps/1/connections/9/flags/");
   });
 
   it("createConnectionFlag", async () => {

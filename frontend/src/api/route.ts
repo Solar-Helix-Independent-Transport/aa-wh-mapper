@@ -24,8 +24,10 @@ export const getSharedRoute = (routeId: number) =>
 export const deleteSharedRoute = (routeId: number) =>
   api.delete<void>(`/route/shared/${routeId}/`);
 
-export const listConnectionFlags = (connectionId: number) =>
-  api.get<ConnectionFlagOut[]>(`/connections/${connectionId}/flags/`);
+export const listConnectionFlags = (mapId: number, connectionId: number) =>
+  api.get<ConnectionFlagOut[]>(
+    `/maps/${mapId}/connections/${connectionId}/flags/`,
+  );
 
 export const createConnectionFlag = (
   connectionId: number,

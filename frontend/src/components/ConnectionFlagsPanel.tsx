@@ -52,7 +52,7 @@ export function ConnectionFlagsPanel({
   const refresh = () => {
     Promise.all(
       connections.map((connection) =>
-        listConnectionFlags(connection.id).then((flags) => ({
+        listConnectionFlags(mapId, connection.id).then((flags) => ({
           connection,
           flags,
         })),
