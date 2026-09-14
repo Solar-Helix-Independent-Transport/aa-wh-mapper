@@ -103,6 +103,32 @@ describe("useResizablePanel", () => {
     expect(localStorage.getItem(OPTIONS.hiddenStorageKey)).toBe("true");
   });
 
+  it("falls back to defaultWidth/visible when localStorage.getItem throws", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("access denied");
+    });
+
+    const { result } = renderHook(() => useResizablePanel(OPTIONS));
+
+    expect(result.current.width).toBe(300);
+    expect(result.current.hidden).toBe(false);
+  });
+
+  it("doesn't crash when localStorage.setItem throws", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota exceeded");
+    });
+
+    const { result } = renderHook(() => useResizablePanel(OPTIONS));
+
+    expect(() => {
+      act(() => {
+        result.current.setHidden(true);
+      });
+    }).not.toThrow();
+    expect(result.current.hidden).toBe(true);
+  });
+
   it("tears down an in-progress drag's listeners on unmount", () => {
     const removeSpy = vi.spyOn(document, "removeEventListener");
     const { result, unmount } = renderHook(() => useResizablePanel(OPTIONS));

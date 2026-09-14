@@ -8,6 +8,25 @@ interface Options {
   hiddenStorageKey: string;
 }
 
+// localStorage can throw on access rather than just being unavailable (e.g.
+// older Safari private browsing, locked-down/embedded webviews) - these
+// wrappers degrade to "nothing stored"/no-op instead of crashing the panel.
+function readStoredItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredItem(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Best-effort persistence only - nothing to recover here.
+  }
+}
+
 /** Drag-to-resize + persisted width/hidden state for a right-edge side
  * panel - originally MapView's SignaturePanel behavior, extracted so
  * RouteFinder/SharedRoute's itinerary sidebar can share the exact same
@@ -23,11 +42,11 @@ export function useResizablePanel({
   hiddenStorageKey,
 }: Options) {
   const [width, setWidth] = useState<number>(() => {
-    const stored = Number(localStorage.getItem(widthStorageKey));
+    const stored = Number(readStoredItem(widthStorageKey));
     return stored >= minWidth && stored <= maxWidth ? stored : defaultWidth;
   });
   const [hidden, setHidden] = useState<boolean>(
-    () => localStorage.getItem(hiddenStorageKey) === "true",
+    () => readStoredItem(hiddenStorageKey) === "true",
   );
   const isResizingRef = useRef(false);
   // Holds the active drag's own listener-removal function while a resize is
@@ -37,11 +56,11 @@ export function useResizablePanel({
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(widthStorageKey, String(width));
+    writeStoredItem(widthStorageKey, String(width));
   }, [width, widthStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem(hiddenStorageKey, String(hidden));
+    writeStoredItem(hiddenStorageKey, String(hidden));
   }, [hidden, hiddenStorageKey]);
 
   const handleResizeStart = useCallback(
