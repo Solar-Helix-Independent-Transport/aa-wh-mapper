@@ -8,7 +8,7 @@ import traceback
 from datetime import timedelta
 
 # Third Party
-import httpx
+import httpx2
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
@@ -1178,7 +1178,7 @@ def sync_eve_scout_thera_turnur():
     # as refresh_system_sovereignty's self.retry(), which raises internally
     # for the same purpose); swallowing it would make a failed fetch look
     # like a silent no-op success on the status page.
-    response = httpx.get(EVE_SCOUT_API_URL, timeout=10)
+    response = httpx2.get(EVE_SCOUT_API_URL, timeout=10)
     response.raise_for_status()
 
     owner = _eve_scout_owner()
