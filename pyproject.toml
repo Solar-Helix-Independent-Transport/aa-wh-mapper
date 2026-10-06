@@ -41,9 +41,10 @@ dependencies = [
     "allianceauth>=5",
     "channels",
     "channels-redis",
+    "django-esi>=10",
     "django-eveonline-sde>=0.0.1b11",
     "django-ninja",
-    "httpx",
+    "httpx2",
     "redis",
     # "daphne",
 ]

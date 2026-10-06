@@ -939,7 +939,7 @@ class TestSyncEveScoutTheraTurnur(TestCase):
         row.update(overrides)
         return row
 
-    @patch("wh_mapper.tasks.httpx.get")
+    @patch("wh_mapper.tasks.httpx2.get")
     def test_creates_thera_and_turnur_reference_maps(self, mock_get):
         mock_get.return_value.json.return_value = [
             self._thera_row(),
@@ -987,7 +987,7 @@ class TestSyncEveScoutTheraTurnur(TestCase):
         turnur_connection = WormholeConnection.objects.get(map=turnur_map)
         self.assertEqual(turnur_connection.ship_size_limit, "xlarge")
 
-    @patch("wh_mapper.tasks.httpx.get")
+    @patch("wh_mapper.tasks.httpx2.get")
     def test_second_poll_prunes_signatures_no_longer_live(self, mock_get):
         mock_get.return_value.json.return_value = [self._thera_row()]
         sync_eve_scout_thera_turnur()
@@ -1008,7 +1008,7 @@ class TestSyncEveScoutTheraTurnur(TestCase):
         # hub system itself stays.
         self.assertEqual(MapSystem.objects.filter(map=thera_map).count(), 1)
 
-    @patch("wh_mapper.tasks.httpx.get")
+    @patch("wh_mapper.tasks.httpx2.get")
     def test_re_polling_the_same_signature_does_not_duplicate_anything(self, mock_get):
         mock_get.return_value.json.return_value = [self._thera_row()]
         sync_eve_scout_thera_turnur()
@@ -1019,7 +1019,7 @@ class TestSyncEveScoutTheraTurnur(TestCase):
         self.assertEqual(WormholeConnection.objects.filter(map=thera_map).count(), 1)
         self.assertEqual(MapSystem.objects.filter(map=thera_map).count(), 2)
 
-    @patch("wh_mapper.tasks.httpx.get")
+    @patch("wh_mapper.tasks.httpx2.get")
     def test_fetch_failure_records_a_failed_heartbeat_and_creates_nothing(
         self, mock_get
     ):
@@ -1032,7 +1032,7 @@ class TestSyncEveScoutTheraTurnur(TestCase):
         heartbeat = TaskHeartbeat.objects.get(task_name="sync_eve_scout_thera_turnur")
         self.assertFalse(heartbeat.last_success)
 
-    @patch("wh_mapper.tasks.httpx.get")
+    @patch("wh_mapper.tasks.httpx2.get")
     def test_no_superuser_skips_sync_without_raising(self, mock_get):
         self.owner.delete()
         mock_get.return_value.json.return_value = [self._thera_row()]
