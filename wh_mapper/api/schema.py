@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal, Optional
 
 # Third Party
-from ninja import Schema
+from ninja import Field, Schema
 
 # Mirror wh_mapper.models.Signature.SignatureType/LifeStatus and
 # WormholeConnection.MassStatus/ShipSize's choices= - kept as plain Literal
@@ -94,14 +94,17 @@ class MapOut(Schema):
 class MapCreate(Schema):
     """Payload to create a Map"""
 
-    name: str
+    # max_length mirrors Map.name (models.py) - without it, an oversized
+    # value would sail past this schema and only fail once it hits the DB,
+    # as an unhandled DataError/500 instead of a clean 400.
+    name: str = Field(max_length=100)
     visibility: Literal["private", "shared"] = "private"
 
 
 class MapUpdate(Schema):
     """Payload to update a Map"""
 
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=100)
     visibility: Literal["private", "shared"] | None = None
 
 
@@ -137,7 +140,8 @@ class MapSystemCreate(Schema):
     """Payload to add a solar system to a Map"""
 
     solar_system_id: int
-    label: str = ""
+    # max_length mirrors MapSystem.label (models.py) - see MapCreate.name.
+    label: str = Field(default="", max_length=100)
     x: float = 0
     y: float = 0
     pinned: bool = False
@@ -146,7 +150,7 @@ class MapSystemCreate(Schema):
 class MapSystemUpdate(Schema):
     """Payload to update a MapSystem"""
 
-    label: str | None = None
+    label: str | None = Field(default=None, max_length=100)
     x: float | None = None
     y: float | None = None
     pinned: bool | None = None
@@ -203,9 +207,12 @@ class SignatureOut(Schema):
 class SignatureCreate(Schema):
     """Payload to add a Signature to a MapSystem"""
 
-    signature_id: str
+    # max_length mirrors Signature.signature_id (models.py) - see
+    # MapCreate.name. wormhole_type_code mirrors WormholeType.code instead
+    # (it's looked up by code, not stored directly on Signature).
+    signature_id: str = Field(max_length=10)
     sig_type: SignatureTypeLiteral = "unknown"
-    wormhole_type_code: str | None = None
+    wormhole_type_code: str | None = Field(default=None, max_length=10)
     life_status: LifeStatusLiteral = "stable"
 
 
@@ -213,7 +220,7 @@ class SignatureUpdate(Schema):
     """Payload to update a Signature"""
 
     sig_type: SignatureTypeLiteral | None = None
-    wormhole_type_code: str | None = None
+    wormhole_type_code: str | None = Field(default=None, max_length=10)
     life_status: LifeStatusLiteral | None = None
     is_hidden: bool | None = None
 
@@ -221,7 +228,7 @@ class SignatureUpdate(Schema):
 class SignatureBulkRow(Schema):
     """A single row from a pasted probe-scan result"""
 
-    signature_id: str
+    signature_id: str = Field(max_length=10)
     sig_type: SignatureTypeLiteral | None = None
 
 

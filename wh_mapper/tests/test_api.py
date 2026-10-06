@@ -98,6 +98,18 @@ class TestMapApi(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([m["id"] for m in response.json()], [map_id])
 
+    def test_create_map_rejects_an_oversized_name_with_a_clean_422(self):
+        # Regression test: without a max_length on MapCreate.name matching
+        # Map.name's own CharField(max_length=100), this would instead hit
+        # the DB and raise an unhandled DataError (500) rather than a clean
+        # validation error.
+        response = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "x" * 101}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 422)
+
     def test_owner_name_uses_main_character_not_username(self):
         self.client.post(
             "/wh-mapper/api/maps/",
@@ -403,6 +415,28 @@ class TestMapApi(TestCase):
         self.assertEqual(body["life_status"], "stable")
         # Stable is stamped too (not cleared) - see apply_life_status.
         self.assertIsNotNone(body["life_status_marked_at"])
+
+    def test_create_signature_rejects_an_oversized_signature_id_with_a_clean_422(self):
+        # Regression test: see test_create_map_rejects_an_oversized_name_
+        # with_a_clean_422 - same gap, for Signature.signature_id
+        # (max_length=10).
+        map_id = self.client.post(
+            "/wh-mapper/api/maps/",
+            data=json.dumps({"name": "Oversized Signature Map"}),
+            content_type="application/json",
+        ).json()["id"]
+        system_id = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/",
+            data=json.dumps({"solar_system_id": self.j_system.id}),
+            content_type="application/json",
+        ).json()["id"]
+
+        response = self.client.post(
+            f"/wh-mapper/api/maps/{map_id}/systems/{system_id}/signatures/",
+            data=json.dumps({"signature_id": "X" * 11}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 422)
 
     def test_signature_created_directly_with_bucket_sets_marked_at(self):
         map_id = self.client.post(
